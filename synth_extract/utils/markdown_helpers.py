@@ -41,6 +41,7 @@ def _output_folder_for_pdf(pdf_path: Path, output_markdown_path: Path) -> Path:
 def pdf_to_markdown(
     pdf_path: str,
     output_markdown_path: str,
+    markdown_only: bool = False,
 ) -> None:
     """
     Convert a PDF to Markdown using Marker.
@@ -51,6 +52,9 @@ def pdf_to_markdown(
         Path to input PDF.
     output_markdown_path : str
         Path where markdown file will be saved.
+    markdown_only : bool, optional
+        If True, save only the rendered markdown file. If False, also save
+        extracted images and metadata.
     """
 
     from marker.converters.pdf import PdfConverter
@@ -71,10 +75,17 @@ def pdf_to_markdown(
         exist_ok=True,
     )
 
+    print(f"[INFO] Saving rendered markdown to: {output_folder / f'{pdf_path.stem}.md'}")
+
     (output_folder / f"{pdf_path.stem}.md").write_text(
         rendered.markdown,
         encoding="utf-8",
     )
+
+    assert (output_folder / f"{pdf_path.stem}.md").exists()
+
+    if markdown_only:
+        return
 
     for image_name, image in rendered.images.items():
         image.save(output_folder / image_name)
