@@ -1,0 +1,7 @@
+langchain-core
+langchain-openai
+marker-pdf
+pydantic
+python-dotenv
+requests
+urllib3
