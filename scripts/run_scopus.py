@@ -10,8 +10,8 @@ def main() -> None:
     )
 
     scopus.fetch_scopus_by_publisher(
-        publisher="Elsevier",
-        max_pages=5,
+        publisher="Springer Nature",
+        db_path="data/scopus_springer_nature.db"
     )
 
 
