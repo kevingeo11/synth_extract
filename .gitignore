@@ -216,3 +216,18 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# plans for project management
+plan/
+
+# data folder
+data/
+
+# files for random test
+del_*
+
+# mac
+.DS_store
+
+# sql
+*.sqlite
