@@ -52,7 +52,7 @@ OPENSEARCH_RESULT_KEYS = (
     "opensearch:itemsPerPage",
 )
 
-LOG_SEPARATOR = "-" * 100
+LOG_SEPARATOR = "-" * 50
 
 
 def _log_major_separator(label: str) -> None:
@@ -466,11 +466,13 @@ def save_records(conn, records: list[dict]):
     ])
     conn.commit()
     inserted_count = conn.total_changes - total_changes_before
+    total_saved_count = count_saved_records(conn)
     logger.info(
-        "Saved Scopus records | attempted=%s inserted=%s ignored_duplicates=%s",
+        "Saved Scopus records | attempted=%s inserted=%s ignored_duplicates=%s total_saved=%s",
         len(records),
         inserted_count,
         len(records) - inserted_count,
+        total_saved_count,
     )
     return inserted_count
 
