@@ -222,6 +222,7 @@ plan/
 
 # data folder
 data/
+logs/
 
 # files for random test
 del_*
