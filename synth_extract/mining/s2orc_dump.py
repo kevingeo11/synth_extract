@@ -81,23 +81,26 @@ Usage
 
 Behavior
 --------
-- Looks up the latest dataset release, then the pre-signed shard URLs for
-  s2orc_v2 within that release.
-- Saves shards into ../data/s2orc (relative to this script).
-- Skips shards that are already downloaded, after verifying gzip integrity.
-- Resumes interrupted downloads using HTTP Range requests (partial files
-  are kept as "<shard>.gz.part" until confirmed complete).
-- Retries transient network failures with exponential backoff.
-- Verifies each downloaded file's size against the server-reported
-  Content-Length before treating it as complete.
-- Logs progress (timestamped) to both stdout and a persistent log file
-  in the download directory, so progress survives across Slurm job
+- get_shard_urls() queries the API for the latest release, then the
+  pre-signed shard URLs for s2orc_v2 within that release, and writes them
+  to data/s2orc/shard_urls.json (a fresh manifest each run, since the S3
+  links are pre-signed and expire after a while).
+- download_shards() reads that manifest back from disk and downloads each
+  shard into data/s2orc, with:
+    - skip-if-already-downloaded (verified via gzip integrity check),
+    - resume of interrupted downloads via HTTP Range requests (partial
+      files kept as "<shard>.gz.part" until confirmed complete),
+    - retries with exponential backoff on transient network failures,
+    - size verification against the server-reported Content-Length.
+- Progress is logged (timestamped) to both stdout and a persistent log
+  file in the download directory, so it survives across Slurm job
   resubmissions and is readable from the .out file.
 
 Requires: requests, tqdm
 """
 
 import gzip
+import json
 import logging
 import os
 import sys
@@ -111,6 +114,7 @@ from tqdm import tqdm
 API_KEY = os.getenv("S2_API_KEY")
 DATASET_NAME = "s2orc_v2"
 DATA_DIR = Path(__file__).resolve().parents[2] / "data" / "s2orc"
+SHARD_URLS_PATH = DATA_DIR / "shard_urls.json"
 MAX_RETRIES = 5
 CHUNK_SIZE = 1024 * 1024  # 1 MB
 CONNECT_TIMEOUT = 30
@@ -137,19 +141,9 @@ def _setup_logging():
     logger.addHandler(file_handler)
 
 
-def main():
-    _setup_logging()
-
-    if not API_KEY:
-        logger.error("Environment variable S2_API_KEY is not set.")
-        sys.exit(1)
-
-    session = requests.Session()
-    session.headers.update({"x-api-key": API_KEY})
-
-    logger.info("Starting s2orc_v2 download. Target directory: %s", DATA_DIR)
-
-    # 1. Get the latest release id.
+def get_shard_urls(session):
+    """Look up the latest release, fetch the pre-signed s2orc_v2 shard
+    URLs for it, persist them to SHARD_URLS_PATH, and return the list."""
     resp = session.get(
         "https://api.semanticscholar.org/datasets/v1/release",
         timeout=(CONNECT_TIMEOUT, READ_TIMEOUT),
@@ -162,7 +156,6 @@ def main():
     latest = releases[-1]
     logger.info("Latest release: %s", latest)
 
-    # 2. Get the pre-signed shard (S3) URLs for s2orc_v2 in that release.
     resp = session.get(
         f"https://api.semanticscholar.org/datasets/v1/release/{latest}/dataset/{DATASET_NAME}",
         timeout=(CONNECT_TIMEOUT, READ_TIMEOUT),
@@ -173,9 +166,27 @@ def main():
     if not files:
         logger.error("No files returned for dataset '%s'.", DATASET_NAME)
         sys.exit(1)
-    logger.info("Found %d shard(s) to download.", len(files))
 
-    # 3. Download every shard, with resume + retry support.
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    with open(SHARD_URLS_PATH, "w") as f:
+        json.dump({"release": latest, "dataset": DATASET_NAME, "files": files}, f, indent=2)
+
+    logger.info("Found %d shard(s); manifest written to %s", len(files), SHARD_URLS_PATH)
+    return files
+
+
+def download_shards(session):
+    """Read the shard URL manifest from SHARD_URLS_PATH and download every
+    shard into DATA_DIR, with resume, retry, and integrity verification."""
+    if not SHARD_URLS_PATH.exists():
+        logger.error("No manifest found at %s; run get_shard_urls() first.", SHARD_URLS_PATH)
+        sys.exit(1)
+
+    with open(SHARD_URLS_PATH) as f:
+        manifest = json.load(f)
+    files = manifest["files"]
+    logger.info("Loaded %d shard URL(s) from %s", len(files), SHARD_URLS_PATH)
+
     for idx, url in enumerate(tqdm(files, desc="Shards", unit="file"), start=1):
         shard_name = Path(urlparse(url).path).name  # pre-signed URLs carry query params, keep only the path
         if not shard_name.endswith(".gz"):
@@ -248,7 +259,7 @@ def main():
 
                     downloaded = resume_bytes
                     last_logged_pct = -1
-                    with open(tmp_path, mode) as f, tqdm(
+                    with open(tmp_path, mode) as out_f, tqdm(
                         total=expected_total or None,
                         initial=resume_bytes,
                         unit="B",
@@ -259,7 +270,7 @@ def main():
                     ) as bar:
                         for chunk in r.iter_content(chunk_size=CHUNK_SIZE):
                             if chunk:
-                                f.write(chunk)
+                                out_f.write(chunk)
                                 bar.update(len(chunk))
                                 downloaded += len(chunk)
                                 if expected_total:
@@ -296,6 +307,21 @@ def main():
                 time.sleep(wait)
 
     logger.info("Done. All shards downloaded successfully.")
+
+
+def main():
+    _setup_logging()
+
+    if not API_KEY:
+        logger.error("Environment variable S2_API_KEY is not set.")
+        sys.exit(1)
+
+    session = requests.Session()
+    session.headers.update({"x-api-key": API_KEY})
+
+    logger.info("Starting s2orc_v2 download. Target directory: %s", DATA_DIR)
+    get_shard_urls(session)
+    download_shards(session)
 
 
 if __name__ == "__main__":
