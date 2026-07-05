@@ -369,6 +369,7 @@ def init_db(db_path: str):
             eid TEXT PRIMARY KEY,
             doi TEXT,
             title TEXT,
+            author TEXT,
             journal TEXT,
             publisher TEXT,
             open_access TEXT,
@@ -376,7 +377,6 @@ def init_db(db_path: str):
             affiliation TEXT
         )
     """)
-    _ensure_papers_affiliation_column(conn)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS crawl_state (
             publisher TEXT PRIMARY KEY,
@@ -386,21 +386,8 @@ def init_db(db_path: str):
         )
     """)
     conn.commit()
-    logger.debug("Initialized Scopus SQLite database | db_path=%s", db_path)
+    logger.info("Initialized Scopus SQLite database | db_path=%s", db_path)
     return conn
-
-
-def _ensure_papers_affiliation_column(conn) -> None:
-    columns = {
-        row[1]
-        for row in conn.execute("PRAGMA table_info(papers)").fetchall()
-    }
-
-    if "affiliation" in columns:
-        return
-
-    conn.execute("ALTER TABLE papers ADD COLUMN affiliation TEXT")
-    logger.info("Added missing papers.affiliation column to Scopus database")
 
 
 def get_saved_cursor(conn, publisher: str):
@@ -410,11 +397,11 @@ def get_saved_cursor(conn, publisher: str):
     ).fetchone()
 
     if row is None:
-        logger.debug("No saved Scopus cursor found | publisher=%s", publisher)
+        logger.info("No saved Scopus cursor found | publisher=%s", publisher)
         return "*", 0, False
 
     cursor, pages_completed, finished = row
-    logger.debug(
+    logger.info(
         "Loaded saved Scopus cursor | publisher=%s pages_completed=%s finished=%s cursor=%s",
         publisher,
         pages_completed,
@@ -453,14 +440,15 @@ def save_records(conn, records: list[dict]):
     total_changes_before = conn.total_changes
     conn.executemany("""
         INSERT OR IGNORE INTO papers (
-            eid, doi, title, journal, publisher, open_access, open_access_flag, affiliation
+            eid, doi, title, author, journal, publisher, open_access, open_access_flag, affiliation
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, [
         (
             r["eid"],
             r["doi"],
             r["title"],
+            r.get("author"),
             r["journal"],
             r["publisher"],
             r["open_access"],
@@ -578,6 +566,7 @@ def fetch_scopus_by_publisher(
                     "eid": e.get("eid"),
                     "doi": e.get("prism:doi"),
                     "title": e.get("dc:title"),
+                    "author": e.get("dc:creator"),
                     "journal": e.get("prism:publicationName"),
                     "publisher": e.get("dc:publisher") or publisher,
                     "open_access": e.get("openaccess"),
@@ -629,10 +618,6 @@ def fetch_scopus_by_publisher(
                 break
 
             if request_delay > 0:
-                logger.debug(
-                    "Waiting before next Scopus request | delay_seconds=%s",
-                    request_delay,
-                )
                 time.sleep(request_delay)
     finally:
         try:
