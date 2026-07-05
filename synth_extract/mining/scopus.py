@@ -52,6 +52,12 @@ OPENSEARCH_RESULT_KEYS = (
     "opensearch:itemsPerPage",
 )
 
+LOG_SEPARATOR = "-" * 100
+
+
+def _log_major_separator(label: str) -> None:
+    logger.info("%s %s %s", LOG_SEPARATOR, label, LOG_SEPARATOR)
+
 
 def _build_scopus_session() -> requests.Session:
     """Build a requests.Session with retries for transient Scopus failures.
@@ -484,6 +490,8 @@ def fetch_scopus_by_publisher(
     start: bool = False,
     request_delay: float = 0.2,
 ):
+    _log_major_separator("SCOPUS CRAWL INITIALIZATION")
+
     if start:
         if Path(db_path).exists():
             raise ValueError(
@@ -524,6 +532,8 @@ def fetch_scopus_by_publisher(
         pages_this_run = 0
 
         while True:
+            _log_major_separator(f"SCOPUS REQUEST PAGE {pages_completed + 1}")
+
             params = _build_scopus_search_params(
                 query=query,
                 count=count,
@@ -620,6 +630,8 @@ def fetch_scopus_by_publisher(
             if request_delay > 0:
                 time.sleep(request_delay)
     finally:
+        _log_major_separator("SCOPUS CRAWL SUMMARY")
+
         try:
             logger.info(
                 "Scopus database saved entry count | db_path=%s saved_entries=%s",
