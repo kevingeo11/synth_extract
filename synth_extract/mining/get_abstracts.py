@@ -617,8 +617,9 @@ def fetch_and_update_abstracts(
             if not doi:
                 stats["skipped_invalid_doi"] += 1
                 logger.warning(
-                    "Skipping row with empty DOI after normalization | rowid=%s",
+                    "Skipping row with empty DOI after normalization | rowid=%s, doi=%s",
                     rowid,
+                    row["doi"],
                 )
                 continue
 
