@@ -18,4 +18,4 @@ mamba activate /nobackup/proj/disk/naiss2024-5-630/personal/george/envs/extract
 
 export PYTHONPATH="$SLURM_SUBMIT_DIR:${PYTHONPATH:-}"
 
-python -m synth_extract.mining.s2orc_dump
+# python -m synth_extract.mining.s2orc_dump

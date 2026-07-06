@@ -1,12 +1,14 @@
 #!/bin/bash -l
 #SBATCH -A "naiss2026-3-549-cpu"
 #SBATCH -p cpu
-#SBATCH -J get_abstracts
+#SBATCH -J get_abstracts_elsevier
 #SBATCH -t 24:00:00
 #SBATCH -n 1
 #SBATCH -c 2
 #SBATCH --mem=4G
 #SBATCH -o logs/%x-%j.out
+#SBATCH --mail-user=kevinge@chalmers.se
+#SBATCH --mail-type=BEGIN,END,FAIL
 
 set -euo pipefail
 
@@ -20,6 +22,6 @@ export PYTHONPATH="$SLURM_SUBMIT_DIR:${PYTHONPATH:-}"
 
 python -m synth_extract.mining.get_abstracts \
     --db-path data/scopus_elsevier.db \
-    # --resume \
+    --mailto kevinge@chalmers.se \
     --request-delay 0.25 \
     --log-level INFO

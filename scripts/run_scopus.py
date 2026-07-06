@@ -10,8 +10,8 @@ def main() -> None:
     )
 
     scopus.fetch_scopus_by_publisher(
-        publisher="Springer Nature",
-        db_path="data/scopus_springer_nature.db"
+        publisher="Wiley",
+        db_path="data/scopus_wiley.db"
     )
 
 
