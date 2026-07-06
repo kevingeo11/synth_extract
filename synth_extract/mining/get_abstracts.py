@@ -31,6 +31,7 @@ ENRICHMENT_COLUMNS = {
     "authors_source": "TEXT",
     "affiliations_enriched": "TEXT",
     "affiliations_source": "TEXT",
+    "doi_tested": "INTEGER DEFAULT 0",
 }
 
 RETRY_STATUS_FORCELIST = (429, 500, 502, 503, 504)
@@ -531,14 +532,7 @@ def iter_unenriched_papers(
         FROM {quote_identifier(enriched_table)}
         WHERE doi IS NOT NULL
           AND trim(doi) != ''
-          AND (
-              abstract IS NULL
-              OR trim(abstract) = ''
-              OR authors_enriched IS NULL
-              OR trim(authors_enriched) = ''
-              OR affiliations_enriched IS NULL
-              OR trim(affiliations_enriched) = ''
-          )
+          AND coalesce(doi_tested, 0) = 0
         ORDER BY rowid
     """
     params: tuple[Any, ...] = ()
@@ -574,6 +568,21 @@ def update_missing_field(
     return cursor.rowcount > 0
 
 
+def mark_doi_tested(
+    conn: sqlite3.Connection,
+    enriched_table: str,
+    rowid: int,
+) -> None:
+    conn.execute(
+        f"""
+        UPDATE {quote_identifier(enriched_table)}
+        SET doi_tested = 1
+        WHERE rowid = ?
+        """,
+        (rowid,),
+    )
+
+
 def fetch_and_update_abstracts(
     db_path: str,
     enriched_table: str = DEFAULT_ENRICHED_TABLE,
@@ -600,6 +609,7 @@ def fetch_and_update_abstracts(
         "failed_openalex": 0,
         "no_fields_found": 0,
         "skipped_invalid_doi": 0,
+        "marked_doi_tested": 0,
     }
 
     try:
@@ -621,6 +631,9 @@ def fetch_and_update_abstracts(
                     rowid,
                     row["doi"],
                 )
+                mark_doi_tested(conn, enriched_table, rowid)
+                stats["marked_doi_tested"] += 1
+                conn.commit()
                 continue
 
             abstract_missing = value_is_missing(row["abstract"])
@@ -714,6 +727,9 @@ def fetch_and_update_abstracts(
                     )
 
             if not (abstract_missing or authors_missing or affiliations_missing):
+                mark_doi_tested(conn, enriched_table, rowid)
+                stats["marked_doi_tested"] += 1
+                conn.commit()
                 if request_delay > 0:
                     time.sleep(request_delay)
                 continue
@@ -795,6 +811,10 @@ def fetch_and_update_abstracts(
 
             if not crossref_updated and not openalex_updated:
                 stats["no_fields_found"] += 1
+
+            mark_doi_tested(conn, enriched_table, rowid)
+            stats["marked_doi_tested"] += 1
+            conn.commit()
 
             if request_delay > 0:
                 time.sleep(request_delay)
