@@ -337,7 +337,7 @@ def value_is_missing(value: Any) -> bool:
         return True
 
     text = str(value).strip()
-    return not text or text.casefold() == "not found"
+    return not text
 
 
 def normalize_doi(doi: Any) -> str:
@@ -534,13 +534,10 @@ def iter_unenriched_papers(
           AND (
               abstract IS NULL
               OR trim(abstract) = ''
-              OR lower(trim(abstract)) = 'not found'
               OR authors_enriched IS NULL
               OR trim(authors_enriched) = ''
-              OR lower(trim(authors_enriched)) = 'not found'
               OR affiliations_enriched IS NULL
               OR trim(affiliations_enriched) = ''
-              OR lower(trim(affiliations_enriched)) = 'not found'
           )
         ORDER BY rowid
     """
@@ -570,7 +567,6 @@ def update_missing_field(
           AND (
               {quote_identifier(value_column)} IS NULL
               OR trim({quote_identifier(value_column)}) = ''
-              OR lower(trim({quote_identifier(value_column)})) = 'not found'
           )
         """,
         (value, source, rowid),
@@ -585,8 +581,7 @@ def fetch_and_update_abstracts(
     mailto: str | None = None,
     limit: int | None = None,
     timeout: int = 30,
-    request_delay: float = 0.1,
-    commit_every: int = 25,
+    request_delay: float = 0.25,
 ) -> dict[str, int]:
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
@@ -618,9 +613,13 @@ def fetch_and_update_abstracts(
             stats["checked"] += 1
             rowid = row["rowid"]
             doi = normalize_doi(row["doi"])
+
             if not doi:
                 stats["skipped_invalid_doi"] += 1
-                logger.warning("Skipping row with empty DOI after normalization | rowid=%s", rowid)
+                logger.warning(
+                    "Skipping row with empty DOI after normalization | rowid=%s",
+                    rowid,
+                )
                 continue
 
             abstract_missing = value_is_missing(row["abstract"])
@@ -652,7 +651,9 @@ def fetch_and_update_abstracts(
                 logger.warning("Crossref request failed | doi=%s error=%s", doi, exc)
                 stats["failed_crossref"] += 1
 
+            crossref_updated = False
             if crossref_result is not None:
+
                 if abstract_missing and crossref_result.abstract:
                     if update_missing_field(
                         conn,
@@ -665,6 +666,7 @@ def fetch_and_update_abstracts(
                     ):
                         stats["crossref_abstracts"] += 1
                         abstract_missing = False
+                        crossref_updated = True
                         logger.info("Stored Crossref abstract | rowid=%s doi=%s", rowid, doi)
 
                 if authors_missing and crossref_result.authors:
@@ -679,6 +681,7 @@ def fetch_and_update_abstracts(
                     ):
                         stats["crossref_authors"] += 1
                         authors_missing = False
+                        crossref_updated = True
                         logger.info("Stored Crossref authors | rowid=%s doi=%s", rowid, doi)
 
                 if affiliations_missing and crossref_result.affiliations:
@@ -693,13 +696,21 @@ def fetch_and_update_abstracts(
                     ):
                         stats["crossref_affiliations"] += 1
                         affiliations_missing = False
+                        crossref_updated = True
                         logger.info(
                             "Stored Crossref affiliations | rowid=%s doi=%s",
                             rowid,
                             doi,
                         )
 
-                conn.commit()
+                if crossref_updated:
+                    conn.commit()
+                    logger.info(
+                        "Committed Crossref enrichment | rowid=%s doi=%s stats=%s",
+                        rowid,
+                        doi,
+                        stats,
+                    )
 
             if not (abstract_missing or authors_missing or affiliations_missing):
                 if request_delay > 0:
@@ -724,7 +735,7 @@ def fetch_and_update_abstracts(
                 logger.warning("OpenAlex request failed | doi=%s error=%s", doi, exc)
                 stats["failed_openalex"] += 1
 
-            found_openalex_field = False
+            openalex_updated = False
             if openalex_result is not None:
                 if abstract_missing and openalex_result.abstract:
                     if update_missing_field(
@@ -737,7 +748,7 @@ def fetch_and_update_abstracts(
                         "openalex",
                     ):
                         stats["openalex_abstracts"] += 1
-                        found_openalex_field = True
+                        openalex_updated = True
                         logger.info("Stored OpenAlex abstract | rowid=%s doi=%s", rowid, doi)
 
                 if authors_missing and openalex_result.authors:
@@ -751,7 +762,7 @@ def fetch_and_update_abstracts(
                         "openalex",
                     ):
                         stats["openalex_authors"] += 1
-                        found_openalex_field = True
+                        openalex_updated = True
                         logger.info("Stored OpenAlex authors | rowid=%s doi=%s", rowid, doi)
 
                 if affiliations_missing and openalex_result.affiliations:
@@ -765,23 +776,24 @@ def fetch_and_update_abstracts(
                         "openalex",
                     ):
                         stats["openalex_affiliations"] += 1
-                        found_openalex_field = True
+                        openalex_updated = True
                         logger.info(
                             "Stored OpenAlex affiliations | rowid=%s doi=%s",
                             rowid,
                             doi,
                         )
 
-            if not found_openalex_field:
-                stats["no_fields_found"] += 1
+                if openalex_updated:
+                    conn.commit()
+                    logger.info(
+                        "Committed OpenAlex enrichment | rowid=%s doi=%s stats=%s",
+                        rowid,
+                        doi,
+                        stats,
+                    )
 
-            if commit_every > 0 and stats["checked"] % commit_every == 0:
-                conn.commit()
-                logger.info(
-                    "Committed abstract enrichment progress | checked=%s stats=%s",
-                    stats["checked"],
-                    stats,
-                )
+            if not crossref_updated and not openalex_updated:
+                stats["no_fields_found"] += 1
 
             if request_delay > 0:
                 time.sleep(request_delay)
@@ -815,8 +827,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--timeout", type=int, default=30)
-    parser.add_argument("--request-delay", type=float, default=0.1)
-    parser.add_argument("--commit-every", type=int, default=25)
+    parser.add_argument("--request-delay", type=float, default=0.25)
     parser.add_argument("--log-level", default="INFO")
     return parser.parse_args()
 
@@ -837,7 +848,6 @@ def main() -> None:
             limit=args.limit,
             timeout=args.timeout,
             request_delay=args.request_delay,
-            commit_every=args.commit_every,
         )
     except ValueError as exc:
         logger.error("%s", exc)
