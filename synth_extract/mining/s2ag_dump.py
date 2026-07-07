@@ -1,58 +1,109 @@
 """
-papers_dump.py
-===============
-
-Downloader for the Semantic Scholar Academic Graph "papers" dataset.
+Downloader for the Semantic Scholar Academic Graph dataseta.
+------
 
 Dataset: papers
----------------
-Core bibliographic metadata for every paper in the Semantic Scholar corpus
-(paper id, external ids, title, abstract, venue, year, citation/reference
-counts, fields of study, authors, etc). This is metadata only -- it does
-not include full body text (see the "s2orc_v2" dataset for that).
+Description: The core attributes of a paper (title, authors, date, etc.).
+200M records in 30 1.5GB files.
+Semantic Scholar Academic Graph Datasets
 
-License
--------
-This collection is licensed under ODC-BY
-(https://opendatacommons.org/licenses/by/1.0/). By downloading this data
-you acknowledge that you have read and agreed to all the terms of this
-license.
+The "papers" dataset provides core metadata about papers.
 
-Attribution
------------
-When using this data in a product or service, or including it in a
-redistribution, please cite:
+SCHEMA
+See https://api.semanticscholar.org/api-docs/graph#tag/Paper-Data
 
-    @misc{https://doi.org/10.48550/arxiv.2301.10140,
-      title     = {The Semantic Scholar Open Data Platform},
-      author    = {Kinney, Rodney and Anastasiades, Chloe and Authur, Russell
-                   and Beltagy, Iz and Bragg, Jonathan and Buraczynski, Alexandra
-                   and Cachola, Isabel and Candra, Stefan
-                   and Chandrasekhar, Yoganand and Cohan, Arman
-                   and Crawford, Miles and Downey, Doug and Dunkelberger, Jason
-                   and Etzioni, Oren and Evans, Rob and Feldman, Sergey
-                   and Gorney, Joseph and Graham, David and Hu, Fangzhou
-                   and Huff, Regan and King, Daniel and Kohlmeier, Sebastian
-                   and Kuehl, Bailey and Langan, Michael and Lin, Daniel
-                   and Liu, Haokun and Lo, Kyle and Lochner, Jaron
-                   and MacMillan, Kelsey and Murray, Tyler and Newell, Chris
-                   and Rao, Smita and Rohatgi, Shaurya and Sayre, Paul
-                   and Shen, Zejiang and Singh, Amanpreet and Soldaini, Luca
-                   and Subramanian, Shivashankar and Tanaka, Amber
-                   and Wade, Alex D. and Wagner, Linda and Wang, Lucy Lu
-                   and Wilhelm, Chris and Wu, Caroline and Yang, Jiangjiang
-                   and Zamarron, Angele and Van Zuylen, Madeleine
-                   and Weld, Daniel S.},
-      publisher = {arXiv},
-      year      = {2023},
-      doi       = {10.48550/ARXIV.2301.10140},
-      url       = {https://arxiv.org/abs/2301.10140},
-    }
+This dataset does not contain information about a paper's references or citations.
+Instead, join with citingPaperId/citedPaperId from the "citations" dataset.
+
+LICENSE
+This collection is licensed under ODC-BY. (https://opendatacommons.org/licenses/by/1.0/)
+
+By downloading this data you acknowledge that you have read and agreed to all the terms in this license.
+
+ATTRIBUTION
+When using this data in a product or service, or including data in a redistribution, please cite the following paper:
+
+BibTex format:
+@misc{https://doi.org/10.48550/arxiv.2301.10140,
+  title = {The Semantic Scholar Open Data Platform},
+  author = {Kinney, Rodney and Anastasiades, Chloe and Authur, Russell and Beltagy, Iz and Bragg, Jonathan and Buraczynski, Alexandra and Cachola, Isabel and Candra, Stefan and Chandrasekhar, Yoganand and Cohan, Arman and Crawford, Miles and Downey, Doug and Dunkelberger, Jason and Etzioni, Oren and Evans, Rob and Feldman, Sergey and Gorney, Joseph and Graham, David and Hu, Fangzhou and Huff, Regan and King, Daniel and Kohlmeier, Sebastian and Kuehl, Bailey and Langan, Michael and Lin, Daniel and Liu, Haokun and Lo, Kyle and Lochner, Jaron and MacMillan, Kelsey and Murray, Tyler and Newell, Chris and Rao, Smita and Rohatgi, Shaurya and Sayre, Paul and Shen, Zejiang and Singh, Amanpreet and Soldaini, Luca and Subramanian, Shivashankar and Tanaka, Amber and Wade, Alex D. and Wagner, Linda and Wang, Lucy Lu and Wilhelm, Chris and Wu, Caroline and Yang, Jiangjiang and Zamarron, Angele and Van Zuylen, Madeleine and Weld, Daniel S.},
+  publisher = {arXiv},
+  year = {2023},
+  doi = {10.48550/ARXIV.2301.10140},
+  url = {https://arxiv.org/abs/2301.10140},
+}
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Dataset: abstracts
+Description: Paper abstract text, where available.
+100M records in 30 1.8GB files.
+Semantic Scholar Academic Graph Datasets
+
+The "abstracts" dataset provides abstract text for selected papers.
+
+SCHEMA
+ - openAccessInfo
+   - externalIds: IDs of this paper in different catalogs
+   - license/url/status: open-access information provided by Unpaywall, linked by DOI or PubMed Central ID
+
+LICENSE
+This collection is licensed under ODC-BY. (https://opendatacommons.org/licenses/by/1.0/)
+
+By downloading this data you acknowledge that you have read and agreed to all the terms in this license.
+
+ATTRIBUTION
+When using this data in a product or service, or including data in a redistribution, please cite the following paper:
+
+BibTex format:
+@misc{https://doi.org/10.48550/arxiv.2301.10140,
+  title = {The Semantic Scholar Open Data Platform},
+  author = {Kinney, Rodney and Anastasiades, Chloe and Authur, Russell and Beltagy, Iz and Bragg, Jonathan and Buraczynski, Alexandra and Cachola, Isabel and Candra, Stefan and Chandrasekhar, Yoganand and Cohan, Arman and Crawford, Miles and Downey, Doug and Dunkelberger, Jason and Etzioni, Oren and Evans, Rob and Feldman, Sergey and Gorney, Joseph and Graham, David and Hu, Fangzhou and Huff, Regan and King, Daniel and Kohlmeier, Sebastian and Kuehl, Bailey and Langan, Michael and Lin, Daniel and Liu, Haokun and Lo, Kyle and Lochner, Jaron and MacMillan, Kelsey and Murray, Tyler and Newell, Chris and Rao, Smita and Rohatgi, Shaurya and Sayre, Paul and Shen, Zejiang and Singh, Amanpreet and Soldaini, Luca and Subramanian, Shivashankar and Tanaka, Amber and Wade, Alex D. and Wagner, Linda and Wang, Lucy Lu and Wilhelm, Chris and Wu, Caroline and Yang, Jiangjiang and Zamarron, Angele and Van Zuylen, Madeleine and Weld, Daniel S.},
+  publisher = {arXiv},
+  year = {2023},
+  doi = {10.48550/ARXIV.2301.10140},
+  url = {https://arxiv.org/abs/2301.10140},
+}
+ 
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ 
+Dataset: authors
+Description: The core attributes of an author (name, affiliation, paper count, etc.). Authors have an "authorId" field, which can be joined to the "authorId" field of the members of a paper's "authors" field.
+75M records in 30 100MB files.
+Semantic Scholar Academic Graph Datasets
+
+The "authors" dataset provides summary information about authors.
+
+SCHEMA
+See https://api.semanticscholar.org/api-docs/graph#tag/Author-Data
+
+This dataset does not contain information about an author's papers.
+Instead, join with authors.authorId from the "papers" dataset.
+
+LICENSE
+This collection is licensed under ODC-BY. (https://opendatacommons.org/licenses/by/1.0/)
+
+By downloading this data you acknowledge that you have read and agreed to all the terms in this license.
+
+ATTRIBUTION
+When using this data in a product or service, or including data in a redistribution, please cite the following paper:
+
+BibTex format:
+@misc{https://doi.org/10.48550/arxiv.2301.10140,
+  title = {The Semantic Scholar Open Data Platform},
+  author = {Kinney, Rodney and Anastasiades, Chloe and Authur, Russell and Beltagy, Iz and Bragg, Jonathan and Buraczynski, Alexandra and Cachola, Isabel and Candra, Stefan and Chandrasekhar, Yoganand and Cohan, Arman and Crawford, Miles and Downey, Doug and Dunkelberger, Jason and Etzioni, Oren and Evans, Rob and Feldman, Sergey and Gorney, Joseph and Graham, David and Hu, Fangzhou and Huff, Regan and King, Daniel and Kohlmeier, Sebastian and Kuehl, Bailey and Langan, Michael and Lin, Daniel and Liu, Haokun and Lo, Kyle and Lochner, Jaron and MacMillan, Kelsey and Murray, Tyler and Newell, Chris and Rao, Smita and Rohatgi, Shaurya and Sayre, Paul and Shen, Zejiang and Singh, Amanpreet and Soldaini, Luca and Subramanian, Shivashankar and Tanaka, Amber and Wade, Alex D. and Wagner, Linda and Wang, Lucy Lu and Wilhelm, Chris and Wu, Caroline and Yang, Jiangjiang and Zamarron, Angele and Van Zuylen, Madeleine and Weld, Daniel S.},
+  publisher = {arXiv},
+  year = {2023},
+  doi = {10.48550/ARXIV.2301.10140},
+  url = {https://arxiv.org/abs/2301.10140},
+}
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 Usage
 -----
     export S2_API_KEY=<your api key>
-    python papers_dump.py
+    python s2ag_dump.py
 
 Set LATEST_RELEASE below to a specific release id (e.g. "2024-01-01") to
 skip the "current latest release" API lookup and pin a specific release.
@@ -91,7 +142,7 @@ from urllib.parse import urlparse
 import requests
 
 API_KEY = os.getenv("S2_API_KEY")
-DATASET_NAME = "papers"
+DATASET_NAME = "authors" # "papers" or "abstracts" or "authors"
 MAX_RETRIES = 5
 CHUNK_SIZE = 1024 * 1024  # 1 MB
 CONNECT_TIMEOUT = 30
@@ -102,7 +153,7 @@ PROGRESS_LOG_INTERVAL_PCT = 10  # log every N% of a shard's download
 # directly. Leave as None to look up whatever the API reports as latest.
 LATEST_RELEASE = "2026-06-24"
 
-logger = logging.getLogger("papers_dump")
+logger = logging.getLogger("s2ag_dump")
 
 
 def _setup_logging():
@@ -294,7 +345,7 @@ def download_shards(release, data_dir):
 
 def main():
     _setup_logging()
-    DATA_DIR = "data/s2ag/papers"
+    DATA_DIR = "data/s2ag/authors"  # change to "data/s2ag/papers" or "data/s2ag/authors" as needed
     download_shards(LATEST_RELEASE, DATA_DIR)
 
 

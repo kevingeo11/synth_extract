@@ -1,11 +1,11 @@
 #!/bin/bash -l
 #SBATCH -A "naiss2026-3-549-cpu"
 #SBATCH -p cpu
-#SBATCH -J s2orc_polymer_filter
+#SBATCH -J s2orc_validation
 #SBATCH -t 6:00:00
 #SBATCH -n 1
-#SBATCH -c 2
-#SBATCH --mem=8G
+#SBATCH -c 4
+#SBATCH --mem=16G
 #SBATCH -o logs/%x-%j.out
 #SBATCH --mail-user=kevinge@chalmers.se
 #SBATCH --mail-type=BEGIN,END,FAIL
