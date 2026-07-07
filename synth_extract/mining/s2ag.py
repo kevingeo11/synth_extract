@@ -116,10 +116,13 @@ def build_abstracts_db(
     conn = sqlite3.connect(build_path)
     cur = conn.cursor()
 
+    cur.execute("PRAGMA page_size = 65536;")
+    # cur.execute("PRAGMA temp_store = FILE;")
+    cur.execute("PRAGMA temp_store = MEMORY;")
+
     # Pragmas tuned for a big one-shot bulk load.
     cur.execute("PRAGMA journal_mode = OFF;")
     cur.execute("PRAGMA synchronous = OFF;")
-    cur.execute("PRAGMA temp_store = MEMORY;")
     cur.execute(f"PRAGMA cache_size = -{cache_size_kib};")
     cur.execute(f"PRAGMA mmap_size = {mmap_size_bytes};")
     cur.execute("PRAGMA locking_mode = EXCLUSIVE;")
@@ -220,6 +223,10 @@ def build_abstracts_db(
         f"({total_rows / elapsed:,.0f} rows/sec avg)."
     )
 
+    cur.execute("PRAGMA cache_size = -250000;")   # ~250 MB
+    cur.execute("PRAGMA mmap_size = 0;")
+    conn.commit()
+
     # Now build the real, indexed table in one efficient sorted pass,
     # instead of having maintained the index incrementally during load.
     logger.info("Building final indexed table (corpusid PRIMARY KEY)...")
@@ -273,6 +280,14 @@ if __name__ == "__main__":
     dump_dir = "data/s2ag/abstracts"
     db_path = "data/s2ag/abstracts.db"
     # Use node-local scratch if Slurm/the cluster provides one.
-    scratch_dir = os.environ.get("TMPDIR") or os.environ.get("SNIC_TMP")
+    # scratch_dir = os.environ.get("TMPDIR") or os.environ.get("SNIC_TMP")
 
-    build_abstracts_db(dump_dir=dump_dir, db_path=db_path, scratch_dir=scratch_dir)
+    # 1. Create a custom temp directory on the network drive where space is abundant
+    # db_dir = os.path.dirname(os.path.abspath(db_path))
+    # network_tmp = os.path.join(db_dir, ".sqlite_large_sort_tmp")
+    # os.makedirs(network_tmp, exist_ok=True)
+    
+    # 2. Force SQLite to use this path for disk-based sorting
+    # os.environ["SQLITE_TMPDIR"] = "/nobackup/proj/disk/naiss2024-5-630/personal/george/synth_extract/data/s2ag/.sqlite_large_sort_tmp"
+
+    build_abstracts_db(dump_dir=dump_dir, db_path=db_path, scratch_dir=None)

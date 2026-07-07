@@ -5,7 +5,7 @@
 #SBATCH -t 24:00:00
 #SBATCH -n 1
 #SBATCH -c 4
-#SBATCH --mem=16G
+#SBATCH --mem=8G
 #SBATCH -o logs/%x-%j.out
 #SBATCH --mail-user=kevinge@chalmers.se
 #SBATCH --mail-type=BEGIN,END,FAIL
