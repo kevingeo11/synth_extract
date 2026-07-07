@@ -75,9 +75,15 @@ def check_polymer_ids_have_abstracts(
     abstract_output_file,
     keyword="polymer",
 ):
+    """Write S2AG abstract rows for polymer S2ORC IDs whose abstract has keyword."""
     polymer_file = Path(polymer_file)
     abstracts_dir = Path(abstracts_dir)
     abstract_output_file = Path(abstract_output_file)
+
+    if not polymer_file.exists():
+        raise FileNotFoundError(f"Polymer file does not exist: {polymer_file}")
+    if not abstracts_dir.is_dir():
+        raise NotADirectoryError(f"Abstracts directory does not exist: {abstracts_dir}")
 
     abstract_output_file.parent.mkdir(parents=True, exist_ok=True)
 
@@ -87,72 +93,121 @@ def check_polymer_ids_have_abstracts(
             "Delete it or specify a different output file."
         )
 
-    keyword = keyword.lower()
+    keyword = keyword.lower().strip()
+    if not keyword:
+        raise ValueError("keyword must be a non-empty string")
 
-    polymer_ids_list = []
+    def parse_corpus_id(value):
+        if value is None:
+            return None
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    polymer_ids = set()
+    polymer_rows = 0
+    duplicate_polymer_ids = 0
+    invalid_polymer_rows = 0
 
     logging.info("Loading polymer corpus IDs from %s", polymer_file)
 
     with gzip.open(polymer_file, "rt", encoding="utf-8") as f:
-        for line in f:
-            paper = json.loads(line)
-            cid = paper.get("corpusid")
-
-            if cid is not None:
-                polymer_ids_list.append(int(cid))
-            else:
+        for line_number, line in enumerate(f, start=1):
+            polymer_rows += 1
+            try:
+                paper = json.loads(line)
+            except json.JSONDecodeError as exc:
+                invalid_polymer_rows += 1
                 logging.warning(
-                    "Missing corpusid in polymer record: %s",
+                    "Skipping invalid JSON in %s at line %s: %s",
+                    polymer_file.name,
+                    line_number,
+                    exc,
+                )
+                continue
+
+            cid = parse_corpus_id(paper.get("corpusid"))
+            if cid is None:
+                invalid_polymer_rows += 1
+                logging.warning(
+                    "Skipping polymer record with missing/invalid corpusid: paperid=%s",
                     paper.get("paperid"),
                 )
+                continue
+
+            if cid in polymer_ids:
+                duplicate_polymer_ids += 1
+            polymer_ids.add(cid)
 
     logging.info(
-        "Loaded %s polymer corpus IDs including duplicates",
-        f"{len(polymer_ids_list):,}",
-    )
-
-    polymer_ids = set(polymer_ids_list)
-
-    logging.info(
-        "Loaded %s unique polymer corpus IDs",
+        "Loaded polymer IDs | rows=%s | unique_ids=%s | duplicates=%s | invalid_rows=%s",
+        f"{polymer_rows:,}",
         f"{len(polymer_ids):,}",
+        f"{duplicate_polymer_ids:,}",
+        f"{invalid_polymer_rows:,}",
     )
 
     if not polymer_ids:
         raise ValueError("No corpus IDs found in polymer file")
 
     found_ids = set()
-    abstract_polymer_ids = set()
+    ids_with_abstract = set()
+    keyword_positive_ids = set()
 
     total_abstract_rows = 0
+    total_invalid_json_rows = 0
+    total_invalid_cid_rows = 0
     total_matching_cids = 0
+    total_empty_abstracts = 0
     total_written = 0
 
     abstract_files = sorted(abstracts_dir.glob("*.gz"))
+    if not abstract_files:
+        raise FileNotFoundError(f"No .gz abstract files found in {abstracts_dir}")
 
-    logging.info("Found %s abstract gz files", f"{len(abstract_files):,}")
+    logging.info("Found %s abstract gz files in %s", f"{len(abstract_files):,}", abstracts_dir)
     logging.info("Writing matching polymer abstracts to %s", abstract_output_file)
 
     with gzip.open(abstract_output_file, "wt", encoding="utf-8") as out:
-        for gz_file in abstract_files:
+        for file_number, gz_file in enumerate(abstract_files, start=1):
             file_rows = 0
+            file_invalid_json_rows = 0
+            file_invalid_cid_rows = 0
             file_matching_cids = 0
+            file_empty_abstracts = 0
             file_written = 0
 
-            logging.info("Starting %s", gz_file.name)
+            logging.info(
+                "Starting abstract file %s/%s: %s",
+                f"{file_number:,}",
+                f"{len(abstract_files):,}",
+                gz_file.name,
+            )
 
             with gzip.open(gz_file, "rt", encoding="utf-8") as f:
-                for line in f:
+                for line_number, line in enumerate(f, start=1):
                     file_rows += 1
                     total_abstract_rows += 1
 
-                    record = json.loads(line)
-                    cid = record.get("corpusid")
-
-                    if cid is None:
+                    try:
+                        record = json.loads(line)
+                    except json.JSONDecodeError as exc:
+                        file_invalid_json_rows += 1
+                        total_invalid_json_rows += 1
+                        logging.warning(
+                            "Skipping invalid JSON in %s at line %s: %s",
+                            gz_file.name,
+                            line_number,
+                            exc,
+                        )
                         continue
 
-                    cid = int(cid)
+                    cid = parse_corpus_id(record.get("corpusid"))
+                    if cid is None:
+                        file_invalid_cid_rows += 1
+                        total_invalid_cid_rows += 1
+                        continue
 
                     if cid not in polymer_ids:
                         continue
@@ -161,51 +216,75 @@ def check_polymer_ids_have_abstracts(
                     file_matching_cids += 1
                     total_matching_cids += 1
 
-                    abstract = (record.get("abstract") or "").lower()
+                    abstract = record.get("abstract")
+                    if not isinstance(abstract, str) or not abstract.strip():
+                        file_empty_abstracts += 1
+                        total_empty_abstracts += 1
+                        continue
 
-                    if keyword in abstract:
-                        abstract_polymer_ids.add(cid)
+                    ids_with_abstract.add(cid)
+
+                    if keyword in abstract.lower():
+                        keyword_positive_ids.add(cid)
                         file_written += 1
                         total_written += 1
                         out.write(json.dumps(record, ensure_ascii=False) + "\n")
 
             logging.info(
-                "Done %s | rows=%s | polymer_cid_matches=%s | "
-                "abstract_keyword_hits=%s | total_found_cids=%s / %s",
+                "Done %s | rows=%s | invalid_json=%s | invalid_corpusid=%s | "
+                "polymer_cid_rows=%s | empty_abstracts=%s | keyword_hits=%s | "
+                "unique_ids_found=%s/%s | unique_ids_with_abstract=%s",
                 gz_file.name,
                 f"{file_rows:,}",
+                f"{file_invalid_json_rows:,}",
+                f"{file_invalid_cid_rows:,}",
                 f"{file_matching_cids:,}",
+                f"{file_empty_abstracts:,}",
                 f"{file_written:,}",
                 f"{len(found_ids):,}",
                 f"{len(polymer_ids):,}",
+                f"{len(ids_with_abstract):,}",
             )
 
             out.flush()
 
-            if len(found_ids) == len(polymer_ids):
-                logging.info("All polymer IDs found in abstracts. Stopping early.")
+            if len(ids_with_abstract) == len(polymer_ids):
+                logging.info("All polymer IDs have non-empty abstracts. Stopping early.")
                 break
 
     missing_ids = polymer_ids - found_ids
-    missing_keyword_ids = polymer_ids - abstract_polymer_ids
+    missing_abstract_ids = polymer_ids - ids_with_abstract
+    missing_keyword_ids = polymer_ids - keyword_positive_ids
 
-    logging.info("Total abstract records scanned: %s", f"{total_abstract_rows:,}")
-    logging.info("Unique polymer IDs: %s", f"{len(polymer_ids):,}")
-    logging.info("Found in abstracts: %s", f"{len(found_ids):,}")
-    logging.info("Missing from abstracts: %s", f"{len(missing_ids):,}")
-    logging.info("Abstracts containing keyword '%s': %s", keyword, f"{total_written:,}")
     logging.info(
-        "Unique polymer IDs whose abstract contains keyword '%s': %s",
-        keyword,
-        f"{len(abstract_polymer_ids):,}",
+        "Finished abstract scan | rows=%s | invalid_json=%s | invalid_corpusid=%s | "
+        "polymer_cid_rows=%s | empty_matching_abstracts=%s | written=%s",
+        f"{total_abstract_rows:,}",
+        f"{total_invalid_json_rows:,}",
+        f"{total_invalid_cid_rows:,}",
+        f"{total_matching_cids:,}",
+        f"{total_empty_abstracts:,}",
+        f"{total_written:,}",
     )
     logging.info(
-        "Polymer IDs found in S2ORC but not keyword-positive in abstracts: %s",
+        "Polymer ID coverage | unique_ids=%s | found_in_abstract_rows=%s | "
+        "with_non_empty_abstract=%s | missing_from_abstract_rows=%s | "
+        "missing_non_empty_abstract=%s",
+        f"{len(polymer_ids):,}",
+        f"{len(found_ids):,}",
+        f"{len(ids_with_abstract):,}",
+        f"{len(missing_ids):,}",
+        f"{len(missing_abstract_ids):,}",
+    )
+    logging.info(
+        "Keyword coverage | keyword=%r | matching_rows_written=%s | "
+        "unique_keyword_positive_ids=%s | ids_without_keyword_positive_abstract=%s",
+        keyword,
+        f"{total_written:,}",
+        f"{len(keyword_positive_ids):,}",
         f"{len(missing_keyword_ids):,}",
     )
     logging.info("Output file: %s", abstract_output_file)
-
-    
 
 def main():
     logging.basicConfig(
