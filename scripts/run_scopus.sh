@@ -7,6 +7,8 @@
 #SBATCH -c 1
 #SBATCH --mem=4G
 #SBATCH -o logs/%x-%j.out
+#SBATCH --mail-user=kevinge@chalmers.se
+#SBATCH --mail-type=BEGIN,END,FAIL
 
 set -euo pipefail
 

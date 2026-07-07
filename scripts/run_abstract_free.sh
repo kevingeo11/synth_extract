@@ -23,5 +23,5 @@ export PYTHONPATH="$SLURM_SUBMIT_DIR:${PYTHONPATH:-}"
 python -m synth_extract.mining.get_abstracts \
     --db-path data/scopus_elsevier.db \
     --mailto kevinge@chalmers.se \
-    --request-delay 0.25 \
+    --request-delay 0.8 \
     --log-level INFO

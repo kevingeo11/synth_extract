@@ -1,12 +1,14 @@
 #!/bin/bash -l
 #SBATCH -A "naiss2026-3-549-cpu"
 #SBATCH -p cpu
-#SBATCH -J get_abstracts
-#SBATCH -t 24:00:00
+#SBATCH -J s2orc_polymer_filter
+#SBATCH -t 6:00:00
 #SBATCH -n 1
 #SBATCH -c 2
-#SBATCH --mem=4G
+#SBATCH --mem=8G
 #SBATCH -o logs/%x-%j.out
+#SBATCH --mail-user=kevinge@chalmers.se
+#SBATCH --mail-type=BEGIN,END,FAIL
 
 set -euo pipefail
 
