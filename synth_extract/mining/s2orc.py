@@ -286,6 +286,7 @@ def check_polymer_ids_have_abstracts(
     )
     logging.info("Output file: %s", abstract_output_file)
 
+
 def main():
     logging.basicConfig(
         level=logging.INFO,
