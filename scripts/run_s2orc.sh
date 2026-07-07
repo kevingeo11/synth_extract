@@ -1,8 +1,8 @@
 #!/bin/bash -l
 #SBATCH -A "naiss2026-3-549-cpu"
 #SBATCH -p cpu
-#SBATCH -J s2orc_abstract_filter
-#SBATCH -t 4:00:00
+#SBATCH -J s2orc_filter_ti_abs_polymer
+#SBATCH -t 12:00:00
 #SBATCH -n 1
 #SBATCH -c 4
 #SBATCH --mem=32G

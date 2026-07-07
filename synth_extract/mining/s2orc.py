@@ -2,6 +2,19 @@ from pathlib import Path
 import gzip
 import json
 import logging
+import os
+import sqlite3
+import sys
+import time
+from glob import glob
+
+logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s | %(levelname)s | %(message)s",
+    )
+
+logger = logging.getLogger(__name__)
+
 
 
 def extract_polymer_s2orc(input_dir, output_file, keyword="polymer"):
@@ -287,11 +300,214 @@ def check_polymer_ids_have_abstracts(
     logging.info("Output file: %s", abstract_output_file)
 
 
+def _chunked(seq, size):
+    """Yield successive `size`-sized chunks from `seq`."""
+    for i in range(0, len(seq), size):
+        yield seq[i : i + size]
+
+
+def _fetch_abstracts(conn, corpusids, sql_chunk_size=500):
+    """
+    Given a list of corpusids, return a dict {corpusid: abstract} for the
+    subset that exists in the abstracts DB.
+
+    SQLite has a default limit of ~999 host parameters per query, so the
+    lookup is done in chunks regardless of how large the caller's batch is.
+    """
+    result = {}
+    if not corpusids:
+        return result
+
+    for chunk in _chunked(list(set(corpusids)), sql_chunk_size):
+        placeholders = ",".join("?" for _ in chunk)
+        query = f"SELECT corpusid, abstract FROM abstracts WHERE corpusid IN ({placeholders})"
+        for cid, abstract in conn.execute(query, chunk):
+            result[cid] = abstract
+    return result
+
+
+def filter_s2orc_by_keyword(
+    s2orc_dump_dir: str,
+    abstract_db_path: str,
+    output_path: str,
+    keyword: str = "polymer",
+    batch_size: int = 5000,
+    sql_chunk_size: int = 500,
+    log_every_n_batches: int = 20,
+) -> dict:
+    """
+    Read a directory of gzipped S2ORC JSONL files, join each paper against
+    `abstract_db_path` by corpusid, keep papers where `keyword` appears in
+    the title and/or the matched abstract, and write the survivors out as
+    a single gzipped JSONL file.
+
+    Parameters
+    ----------
+    s2orc_dump_dir : str
+        Directory containing the S2ORC *.gz JSONL files.
+    abstract_db_path : str
+        Path to the SQLite DB built earlier (table `abstracts(corpusid, abstract)`).
+    output_path : str
+        Path to write the filtered output to, e.g. "polymer_papers.jsonl.gz".
+        Raises FileExistsError if this path already exists, to avoid
+        silently overwriting a previous run.
+    keyword : str
+        Keyword to search for, case-insensitive substring match. Default "polymer".
+    batch_size : int
+        Number of S2ORC records to buffer in memory before doing a batch
+        lookup against the abstracts DB.
+    sql_chunk_size : int
+        Max number of corpusids per single SQL `IN (...)` query (kept
+        comfortably under SQLite's default ~999 host-parameter limit).
+    log_every_n_batches : int
+        Emit a progress log line every N processed batches.
+    """
+    if os.path.exists(output_path):
+        raise FileExistsError(
+            f"Output path already exists, refusing to overwrite: {output_path}"
+        )
+
+    gz_files = sorted(glob(os.path.join(s2orc_dump_dir, "*.gz")))
+    if not gz_files:
+        raise FileNotFoundError(f"No .gz files found in {s2orc_dump_dir}")
+
+    if not os.path.exists(abstract_db_path):
+        raise FileNotFoundError(f"Abstracts DB not found: {abstract_db_path}")
+
+    keyword_lower = keyword.lower()
+
+    logger.info(f"Found {len(gz_files)} S2ORC .gz files in {s2orc_dump_dir}")
+    logger.info(f"Abstracts DB: {abstract_db_path}")
+    logger.info(f"Output: {output_path}")
+    logger.info(f"Keyword (case-insensitive): '{keyword}'")
+    logger.info(f"Config: batch_size={batch_size:,} sql_chunk_size={sql_chunk_size}")
+
+    # Open the abstracts DB read-only so this job can never accidentally
+    # mutate it, and so it's safe to run concurrently with other readers.
+    db_uri = f"file:{os.path.abspath(abstract_db_path)}?mode=ro"
+    conn = sqlite3.connect(db_uri, uri=True)
+
+    # Counters
+    total_lines = 0
+    bad_json_lines = 0
+    total_papers = 0  # valid JSON lines with a corpusid
+    discarded_no_abstract = 0
+    matched_with_abstract = 0
+    passed_filter = 0
+    failed_filter = 0
+
+    batch_count = 0
+    start_time = time.time()
+
+    try:
+        with gzip.open(output_path, "wt", encoding="utf-8") as out_f:
+            for file_idx, path in enumerate(gz_files, start=1):
+                file_start = time.time()
+                logger.info(
+                    f"[{file_idx}/{len(gz_files)}] Processing {os.path.basename(path)}"
+                )
+
+                batch = []  # list of (corpusid, record)
+
+                def flush_batch():
+                    nonlocal matched_with_abstract, discarded_no_abstract
+                    nonlocal passed_filter, failed_filter, batch_count
+
+                    if not batch:
+                        return
+
+                    corpusids = [cid for cid, _rec in batch]
+                    abstract_map = _fetch_abstracts(conn, corpusids, sql_chunk_size)
+
+                    for cid, rec in batch:
+                        if cid not in abstract_map:
+                            discarded_no_abstract += 1
+                            continue
+
+                        matched_with_abstract += 1
+                        abstract_text = abstract_map[cid] or ""
+                        title_text = rec.get("title") or ""
+
+                        title_has_keyword = keyword_lower in title_text.lower()
+                        abstract_has_keyword = keyword_lower in abstract_text.lower()
+
+                        if title_has_keyword or abstract_has_keyword:
+                            passed_filter += 1
+                            rec_out = dict(rec)
+                            rec_out["abstract"] = abstract_text
+                            out_f.write(json.dumps(rec_out, ensure_ascii=False) + "\n")
+                        else:
+                            failed_filter += 1
+
+                    batch.clear()
+                    batch_count += 1
+
+                    if batch_count % log_every_n_batches == 0:
+                        elapsed = time.time() - start_time
+                        rate = total_papers / elapsed if elapsed > 0 else 0
+                        logger.info(
+                            f"progress: {total_papers:,} papers seen | "
+                            f"{matched_with_abstract:,} matched abstract | "
+                            f"{passed_filter:,} passed filter | "
+                            f"{rate:,.0f} papers/sec | {elapsed:,.0f}s elapsed"
+                        )
+
+                with gzip.open(path, "rt", encoding="utf-8") as f:
+                    for line in f:
+                        total_lines += 1
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            rec = json.loads(line)
+                        except json.JSONDecodeError:
+                            bad_json_lines += 1
+                            continue
+
+                        cid = rec.get("corpusid")
+                        if cid is None:
+                            bad_json_lines += 1
+                            continue
+
+                        total_papers += 1
+                        batch.append((cid, rec))
+
+                        if len(batch) >= batch_size:
+                            flush_batch()
+
+                # Flush any leftover records for this file
+                flush_batch()
+
+                logger.info(
+                    f"[{file_idx}/{len(gz_files)}] Finished {os.path.basename(path)} "
+                    f"in {time.time() - file_start:,.0f}s"
+                )
+
+    except Exception:
+        logger.exception("Fatal error while filtering S2ORC dump")
+        conn.close()
+        raise
+    finally:
+        conn.close()
+
+    elapsed = time.time() - start_time
+
+    logger.info("=" * 60)
+    logger.info("DONE. Summary:")
+    logger.info(f"  Total lines read:                 {total_lines:,}")
+    logger.info(f"  Malformed / missing-corpusid lines:{bad_json_lines:,}")
+    logger.info(f"  Total papers (valid, w/ corpusid): {total_papers:,}")
+    logger.info(f"  Discarded (no matching abstract):  {discarded_no_abstract:,}")
+    logger.info(f"  Matched with an abstract:          {matched_with_abstract:,}")
+    logger.info(f"    - Passed filter (kept):          {passed_filter:,}")
+    logger.info(f"    - Failed filter (dropped):       {failed_filter:,}")
+    avg_rate = total_papers / elapsed if elapsed > 0 else 0
+    logger.info(f"  Elapsed: {elapsed:,.0f}s ({avg_rate:,.0f} papers/sec avg)")
+    logger.info(f"  Output written to: {output_path}")
+    logger.info("=" * 60)
+
+
 def main():
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s | %(levelname)s | %(message)s",
-    )
 
     # input_dir = "data/s2orc/dump"
     # output_file = "data/s2orc/polymer_s2orc.jsonl.gz"
@@ -299,14 +515,26 @@ def main():
 
     # extract_polymer_s2orc(input_dir, output_file, keyword)
 
-    polymer_file = "data/s2orc/polymer_s2orc.jsonl.gz"
-    abstracts_dir = "data/s2ag/abstracts"
-    abstract_output_file="data/s2orc/polymer_s2ag_abstracts.jsonl.gz"
+    # polymer_file = "data/s2orc/polymer_s2orc.jsonl.gz"
+    # abstracts_dir = "data/s2ag/abstracts"
+    # abstract_output_file="data/s2orc/polymer_s2ag_abstracts.jsonl.gz"
 
-    check_polymer_ids_have_abstracts(
-        polymer_file, 
-        abstracts_dir, 
-        abstract_output_file)
+    # check_polymer_ids_have_abstracts(
+    #     polymer_file, 
+    #     abstracts_dir, 
+    #     abstract_output_file)
+
+    s2orc_dump_dir = "data/s2orc/dump"
+    abstract_db_path = "data/s2ag/abstracts.db"
+    output_path = "data/s2orc/s2orc_filtered_polymer.jsonl.gz"
+    keyword = "polymer"
+
+    filter_s2orc_by_keyword(
+        s2orc_dump_dir=s2orc_dump_dir,
+        abstract_db_path=abstract_db_path,
+        output_path=output_path,
+        keyword=keyword,
+    )
 
 if __name__ == "__main__":
     main()
