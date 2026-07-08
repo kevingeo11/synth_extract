@@ -35,7 +35,7 @@ stats = fill_missing_abstracts(
     table_name="papers_enriched",
     batch_size=25,
     quota_threshold=1000,
-    delay_seconds=2.0,
+    delay_seconds=0.5,
     max_batches=None,
 )
 
