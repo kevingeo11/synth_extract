@@ -89,6 +89,62 @@ def _update_row(
     )
 
 
+def reset_error_sources(db_path: str, table_name: str) -> dict:
+    """
+    Reset rows marked with ERROR_SOURCE so they can be retried.
+
+    Sets abstract_source to NULL for rows where abstract_source == ERROR_SOURCE.
+
+    Returns
+    -------
+    dict summary of counts: total_rows, error_before, updated, error_after.
+    """
+    conn = sqlite3.connect(db_path)
+
+    try:
+        _validate(conn, table_name)
+
+        total_rows = conn.execute(
+            f'SELECT COUNT(*) FROM "{table_name}"'
+        ).fetchone()[0]
+        error_before = conn.execute(
+            f'SELECT COUNT(*) FROM "{table_name}" WHERE abstract_source = ?',
+            (ERROR_SOURCE,),
+        ).fetchone()[0]
+
+        cur = conn.execute(
+            f'UPDATE "{table_name}" SET abstract_source = NULL WHERE abstract_source = ?',
+            (ERROR_SOURCE,),
+        )
+        conn.commit()
+
+        error_after = conn.execute(
+            f'SELECT COUNT(*) FROM "{table_name}" WHERE abstract_source = ?',
+            (ERROR_SOURCE,),
+        ).fetchone()[0]
+
+        stats = {
+            "total_rows": total_rows,
+            "error_before": error_before,
+            "updated": cur.rowcount,
+            "error_after": error_after,
+        }
+        logger.info(
+            "Reset abstract error sources | db=%s table=%s total_rows=%d "
+            "error_before=%d updated=%d error_after=%d",
+            db_path,
+            table_name,
+            stats["total_rows"],
+            stats["error_before"],
+            stats["updated"],
+            stats["error_after"],
+        )
+        return stats
+
+    finally:
+        conn.close()
+
+
 # --------------------------------------------------------------------------- #
 # Main routine
 # --------------------------------------------------------------------------- #
