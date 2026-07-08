@@ -1,11 +1,11 @@
 #!/bin/bash -l
 #SBATCH -A "naiss2026-3-549-cpu"
-#SBATCH -p cpu
-#SBATCH -J s2ag_abstract
+#SBATCH -p fat
+#SBATCH -J s2ag_papers
 #SBATCH -t 24:00:00
 #SBATCH -n 1
 #SBATCH -c 4
-#SBATCH --mem=8G
+#SBATCH --mem=256G
 #SBATCH -o logs/%x-%j.out
 #SBATCH --mail-user=kevinge@chalmers.se
 #SBATCH --mail-type=BEGIN,END,FAIL

@@ -331,9 +331,9 @@ def filter_s2orc_by_keyword(
     abstract_db_path: str,
     output_path: str,
     keyword: str = "polymer",
-    batch_size: int = 5000,
-    sql_chunk_size: int = 500,
-    log_every_n_batches: int = 20,
+    batch_size: int = 10000,
+    sql_chunk_size: int = 15000,
+    log_every_n_batches: int = 10,
 ) -> dict:
     """
     Read a directory of gzipped S2ORC JSONL files, join each paper against
@@ -386,6 +386,11 @@ def filter_s2orc_by_keyword(
     # mutate it, and so it's safe to run concurrently with other readers.
     db_uri = f"file:{os.path.abspath(abstract_db_path)}?mode=ro"
     conn = sqlite3.connect(db_uri, uri=True)
+    # For speed up
+    conn.execute("PRAGMA mmap_size = 68719476736")   # ~64GB, covers the whole 58GB DB comfortably
+    conn.execute("PRAGMA cache_size = -2000000")      # ~2GB SQLite-private cache, fine
+    conn.execute("PRAGMA temp_store = MEMORY")
+    conn.execute("PRAGMA query_only = TRUE")
 
     # Counters
     total_lines = 0
