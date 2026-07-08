@@ -212,6 +212,40 @@ def extract_scopus_header_info(
     return header_info
 
 
+def get_scopus_rate_limit_data(
+    response_or_headers: requests.Response | Mapping[str, str],
+) -> dict[str, int | str | None]:
+    """Extract Scopus API rate-limit data from a response or headers mapping."""
+    headers = (
+        response_or_headers.headers
+        if isinstance(response_or_headers, requests.Response)
+        else response_or_headers
+    )
+
+    def parse_int_header(name: str) -> int | None:
+        value = _get_header_case_insensitive(headers, name)
+        if value is None:
+            return None
+        try:
+            return int(value)
+        except ValueError:
+            return None
+
+    reset_timestamp = parse_int_header("X-RateLimit-Reset")
+
+    return {
+        "limit": parse_int_header("X-RateLimit-Limit"),
+        "remaining": parse_int_header("X-RateLimit-Remaining"),
+        "reset": reset_timestamp,
+        "reset_readable": _format_unix_timestamp(str(reset_timestamp))
+        if reset_timestamp is not None
+        else None,
+        "retry_after": parse_int_header("Retry-After"),
+        "els_status": _get_header_case_insensitive(headers, "X-ELS-Status"),
+        "els_request_id": _get_header_case_insensitive(headers, "X-ELS-ReqId"),
+    }
+
+
 def _redact_header_value(name: str, value: str | None) -> str | None:
     if value is None:
         return None
