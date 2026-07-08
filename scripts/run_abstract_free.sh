@@ -2,7 +2,7 @@
 #SBATCH -A "naiss2026-3-549-cpu"
 #SBATCH -p cpu
 #SBATCH -J get_abstracts_elsevier
-#SBATCH -t 24:00:00
+#SBATCH -t 50:00:00
 #SBATCH -n 1
 #SBATCH -c 2
 #SBATCH --mem=4G

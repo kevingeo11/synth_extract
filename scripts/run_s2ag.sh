@@ -1,7 +1,7 @@
 #!/bin/bash -l
 #SBATCH -A "naiss2026-3-549-cpu"
 #SBATCH -p fat
-#SBATCH -J s2ag_papers
+#SBATCH -J s2ag_authors
 #SBATCH -t 24:00:00
 #SBATCH -n 1
 #SBATCH -c 4
