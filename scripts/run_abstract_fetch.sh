@@ -1,8 +1,8 @@
 #!/bin/bash -l
 #SBATCH -A "naiss2026-3-549-cpu"
 #SBATCH -p cpu
-#SBATCH -J scopus_s_fetch_wiley
-#SBATCH -t 24:00:00
+#SBATCH -J scopus_s_fetch_elsevier
+#SBATCH -t 48:00:00
 #SBATCH -n 1
 #SBATCH -c 2
 #SBATCH --mem=8G
@@ -35,7 +35,7 @@ pybliometrics.init(keys=[os.getenv("SCOPUS_API_KEY")])
 logging.info(pybliometrics.utils.constants.CONFIG_FILE)
 
 stats = fill_missing_abstracts(
-    db_path="data/scopus_wiley.db",
+    db_path="data/scopus_elsevier.db",
     table_name="papers_enriched",
     batch_size=25,
     quota_threshold=1000,
@@ -56,7 +56,7 @@ PY
 
 # from synth_extract.mining.abstract_fetch import reset_error_sources
 # stats = reset_error_sources(
-#     db_path="data/scopus_wiley.db",
+#     db_path="data/scopus_elsevier.db",
 #     table_name="papers_enriched",
 # )
 # logging.info(f"reset_error_sources finished: {stats}")
