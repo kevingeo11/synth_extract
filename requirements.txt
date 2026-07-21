@@ -1,6 +1,7 @@
 langchain-core
 langchain-openai
 marker-pdf
+pypdf
 pydantic
 python-dotenv
 requests
