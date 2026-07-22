@@ -254,10 +254,11 @@ class PaperStore:
         # it was in the middle of.
         self.conn = sqlite3.connect(str(db_path), timeout=30, isolation_level=None)
         self.conn.row_factory = sqlite3.Row
-        # Lustre is a poor fit for SQLite's shared-memory WAL files. Use the
-        # default rollback journal, explicitly converting databases that may
-        # have been left in WAL mode by an earlier run.
-        self.conn.execute("PRAGMA journal_mode=DELETE")
+        journal_mode = self.conn.execute("PRAGMA journal_mode").fetchone()[0].lower()
+        if journal_mode != "delete":
+            raise RuntimeError(
+                f"Expected SQLite journal_mode='delete', found {journal_mode!r}"
+            )
         self.conn.execute("PRAGMA busy_timeout=30000")
 
     def close(self) -> None:
