@@ -39,5 +39,5 @@ fi
 python -m synth_extract.mining.tdm.elsevier \
     --db data/central_papers.db \
     --output-dir data/fulltext/elsevier \
-    --rate-limit 0.25 \
+    --rate-limit 0.2 \
     --log-level INFO
