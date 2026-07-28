@@ -23,5 +23,5 @@ export PYTHONPATH="$SLURM_SUBMIT_DIR:${PYTHONPATH:-}"
 python -m synth_extract.mining.tdm.europepmc \
     --db data/central_papers.db \
     --output-dir data/fulltext/europepmc \
-    --rate-limit 0.2 \
+    --rate-limit 0.15 \
     --log-level INFO
