@@ -7,7 +7,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
 from synth_extract.config import OPENROUTER_API_BASE, OPENROUTER_API_KEY
-from synth_extract.agents.schemas import (
+from synth_extract.agents.extraction.schemas import (
     build_extraction_parser,
     ExtractionResult,
 )

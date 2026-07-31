@@ -1,17 +1,15 @@
-"""LLM agents used by synth_extract."""
+"""Binary paper classification over OpenAI-compatible APIs."""
 
-from .classification import (
+from .core import PaperClassifier
+from .schemas import (
     ClassificationFailure,
     ClassificationOutcome,
     ClassificationResult,
-    PaperClassifier,
 )
-from .extraction import ExtractorAgent
 
 __all__ = [
     "ClassificationFailure",
     "ClassificationOutcome",
     "ClassificationResult",
-    "ExtractorAgent",
     "PaperClassifier",
 ]
