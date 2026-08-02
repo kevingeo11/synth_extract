@@ -4,13 +4,9 @@ from .agents.classification import (
     ClassificationResult,
     PaperClassifier,
 )
-from .agents.extraction.extractor_agent import ExtractorAgent
-from .agents.extraction.schemas import ExtractionResult
 
 __all__ = [
     "ClassificationFailure",
     "ClassificationResult",
-    "ExtractorAgent",
-    "ExtractionResult",
     "PaperClassifier",
 ]

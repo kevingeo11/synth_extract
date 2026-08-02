@@ -6,12 +6,10 @@ from .classification import (
     ClassificationResult,
     PaperClassifier,
 )
-from .extraction import ExtractorAgent
 
 __all__ = [
     "ClassificationFailure",
     "ClassificationOutcome",
     "ClassificationResult",
-    "ExtractorAgent",
     "PaperClassifier",
 ]

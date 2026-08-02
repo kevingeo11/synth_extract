@@ -2,7 +2,7 @@
 #SBATCH -A "naiss2026-3-549-cpu"
 #SBATCH -p cpu
 #SBATCH -J wiley_downloader
-#SBATCH -t 08:00:00
+#SBATCH -t 70:00:00
 #SBATCH -n 1
 #SBATCH -c 2
 #SBATCH --mem=4G
