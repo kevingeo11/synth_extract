@@ -4,15 +4,17 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ClassificationResult(BaseModel):
-    """A successfully validated binary paper classification."""
+    """A binary paper-classification result."""
 
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    label: bool
+    label: bool = Field(
+        description="Whether the paper matches the classification criteria."
+    )
 
 
 class ClassificationFailure(BaseModel):

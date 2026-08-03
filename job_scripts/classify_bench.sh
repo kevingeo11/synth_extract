@@ -9,7 +9,7 @@
 #SBATCH --mem=128G
 #SBATCH --time=04:00:00
 #SBATCH --output=/nobackup/proj/disk/naiss2024-5-630/personal/george/synth_extract/logs/%x-%j.out
-#SBATCH --error=/nobackup/proj/disk/naiss2024-5-630/personal/george/synth_extract/logs/%x-%j.err
+#SBATCH --error=/nobackup/proj/disk/naiss2024-5-630/personal/george/synth_extract/logs/%x-%j.out
 #SBATCH --mail-user=kevinge@chalmers.se
 #SBATCH --mail-type=BEGIN,END,FAIL
 
@@ -35,13 +35,15 @@ ASYNC_LIMIT=100
 MAX_PARALLEL_REQUESTS=96
 ASYNC_WRITE_BATCH_SIZE=25
 REQUEST_TIMEOUT_SECONDS="${REQUEST_TIMEOUT_SECONDS:-300}"
+MAX_TOKENS=10000
+# Optional JSON object for model/provider-specific request fields.
+# Example: EXTRA_BODY_JSON='{"chat_template_kwargs":{"enable_thinking":false}}'
+EXTRA_BODY_JSON=""
 
 DB_PATH="$PROJECT_DIR/data/central_workspace.db"
 LOG_DIR="$PROJECT_DIR/logs"
 JOB_TAG="${SLURM_JOB_ID:-manual}"
 VLLM_LOG="$LOG_DIR/vllm-$JOB_TAG.log"
-SYNC_LOG="$LOG_DIR/classify-sync-$JOB_TAG.log"
-ASYNC_LOG="$LOG_DIR/classify-async-$JOB_TAG.log"
 
 VLLM_PID=""
 
@@ -136,6 +138,8 @@ echo "Python version:     $(python --version 2>&1)"
 echo "CPU cores:          ${SLURM_CPUS_PER_TASK:-16}"
 echo "Memory allocation:  ${SLURM_MEM_PER_NODE:-unknown} MB"
 echo "Parallel requests:  $MAX_PARALLEL_REQUESTS"
+echo "Maximum tokens:      $MAX_TOKENS"
+echo "Extra request body:  ${EXTRA_BODY_JSON:-not set}"
 echo "Started:            $(date)"
 echo
 echo "GPUs:"
@@ -144,7 +148,7 @@ nvidia-smi \
     --format=csv,noheader
 echo "============================================================"
 
-echo "Starting vLLM; server output is being written to $VLLM_LOG"
+echo "Starting vLLM; server output will be written to $VLLM_LOG"
 # vllm serve "$MODEL_PATH" \
 #     --served-model-name "$MODEL_NAME" \
 #     --dtype bfloat16 \
@@ -175,13 +179,13 @@ readiness_deadline=$((SECONDS + SERVER_START_TIMEOUT_SECONDS))
 
 until curl --fail --silent --show-error "$SERVER_URL/health" >/dev/null 2>&1; do
     if ! kill -0 "$VLLM_PID" 2>/dev/null; then
-        echo "vLLM exited before becoming ready. Last 100 log lines:" >&2
+        echo "vLLM exited before becoming ready. Last 100 server log lines:" >&2
         tail -n 100 "$VLLM_LOG" >&2 || true
         exit 1
     fi
 
     if (( SECONDS >= readiness_deadline )); then
-        echo "Timed out waiting for vLLM. Last 100 log lines:" >&2
+        echo "Timed out waiting for vLLM. Last 100 server log lines:" >&2
         tail -n 100 "$VLLM_LOG" >&2 || true
         exit 1
     fi
@@ -197,36 +201,37 @@ fi
 
 echo "vLLM is ready at $BASE_URL"
 
+CLASSIFIER_ARGS=(
+    --db-path "$DB_PATH"
+    --result-column "$RESULT_COLUMN"
+    --model "$MODEL_NAME"
+    --base-url "$BASE_URL"
+    --api-key "$API_KEY"
+    --timeout "$REQUEST_TIMEOUT_SECONDS"
+    --max-tokens "$MAX_TOKENS"
+)
+
+if [[ -n "$EXTRA_BODY_JSON" ]]; then
+    CLASSIFIER_ARGS+=(--extra-body "$EXTRA_BODY_JSON")
+fi
+
 echo
 echo "Running synchronous classifier for $SYNC_LIMIT pending papers"
 python scripts/classify_papers.py \
-    --db-path "$DB_PATH" \
-    --result-column "$RESULT_COLUMN" \
-    --model "$MODEL_NAME" \
-    --base-url "$BASE_URL" \
-    --api-key "$API_KEY" \
+    "${CLASSIFIER_ARGS[@]}" \
     --limit "$SYNC_LIMIT" \
-    --batch-size "$SYNC_LIMIT" \
-    --timeout "$REQUEST_TIMEOUT_SECONDS" \
-    --log-file "$SYNC_LOG"
+    --batch-size "$SYNC_LIMIT"
 
 echo
 echo "Running asynchronous classifier for the next $ASYNC_LIMIT pending papers"
 python scripts/classify_papers_async.py \
-    --db-path "$DB_PATH" \
-    --result-column "$RESULT_COLUMN" \
-    --model "$MODEL_NAME" \
-    --base-url "$BASE_URL" \
-    --api-key "$API_KEY" \
+    "${CLASSIFIER_ARGS[@]}" \
     --limit "$ASYNC_LIMIT" \
     --batch-size "$ASYNC_LIMIT" \
     --max-parallel-requests "$MAX_PARALLEL_REQUESTS" \
-    --write-batch-size "$ASYNC_WRITE_BATCH_SIZE" \
-    --timeout "$REQUEST_TIMEOUT_SECONDS" \
-    --log-file "$ASYNC_LOG"
+    --write-batch-size "$ASYNC_WRITE_BATCH_SIZE"
 
 echo
 echo "Both classification runs completed successfully at $(date)"
-echo "Synchronous log:  $SYNC_LOG"
-echo "Asynchronous log: $ASYNC_LOG"
-echo "vLLM log:         $VLLM_LOG"
+echo "Classifier/job output: Slurm .out file"
+echo "vLLM server output:    $VLLM_LOG"

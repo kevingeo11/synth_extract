@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import logging
 import os
 import sqlite3
@@ -20,8 +21,9 @@ if str(REPO_ROOT) not in sys.path:
 from synth_extract.agents.classification import (  # noqa: E402
     ClassificationFailure,
     ClassificationResult,
-    PaperClassifier,
+    TitleAbstractClassifier,
 )
+from synth_extract.agents.llm import LLMBackend  # noqa: E402
 
 LOG = logging.getLogger("paper_classification_async")
 TABLE = "papers"
@@ -65,6 +67,16 @@ def nonnegative_float(value: str) -> float:
     parsed = float(value)
     if parsed < 0:
         raise argparse.ArgumentTypeError("must be zero or greater")
+    return parsed
+
+
+def json_object(value: str) -> dict[str, object]:
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError as exc:
+        raise argparse.ArgumentTypeError(f"invalid JSON: {exc}") from exc
+    if not isinstance(parsed, dict):
+        raise argparse.ArgumentTypeError("must be a JSON object")
     return parsed
 
 
@@ -150,6 +162,12 @@ def parse_args() -> argparse.Namespace:
         help="Maximum completion tokens (default: %(default)s)",
     )
     parser.add_argument(
+        "--extra-body",
+        type=json_object,
+        default=None,
+        help="Optional JSON object forwarded as OpenAI extra_body",
+    )
+    parser.add_argument(
         "--sqlite-timeout",
         type=positive_float,
         default=60.0,
@@ -161,25 +179,15 @@ def parse_args() -> argparse.Namespace:
         default="INFO",
         help="Logging verbosity (default: %(default)s)",
     )
-    parser.add_argument(
-        "--log-file",
-        type=Path,
-        default=None,
-        help="Optional log file; logs are always written to stderr",
-    )
     return parser.parse_args()
 
 
-def configure_logging(level: str, log_file: Path | None) -> None:
+def configure_logging(level: str) -> None:
     formatter = logging.Formatter(
         "%(asctime)s | %(levelname)s | %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
-    handlers: list[logging.Handler] = [logging.StreamHandler()]
-    if log_file is not None:
-        path = log_file.expanduser().resolve()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        handlers.append(logging.FileHandler(path, encoding="utf-8"))
+    handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
     for handler in handlers:
         handler.setFormatter(formatter)
     logging.basicConfig(
@@ -239,7 +247,7 @@ def log_progress(progress: Progress, target: int, started: float) -> None:
 
 
 async def classify_and_enqueue(
-    classifier: PaperClassifier,
+    classifier: TitleAbstractClassifier,
     semaphore: asyncio.Semaphore,
     result_queue: asyncio.Queue[ClassificationItem | object],
     paper_id: int,
@@ -416,13 +424,14 @@ async def run_async(args: argparse.Namespace) -> int:
         LOG.error("Database does not exist: %s", db_path)
         return 1
 
-    classifier = PaperClassifier(
+    backend = LLMBackend(
         model=args.model,
         base_url=args.base_url,
         api_key=args.api_key,
         temperature=0.0,
         timeout=args.timeout,
         max_tokens=args.max_tokens,
+        extra_body=args.extra_body,
     )
     read_connection: sqlite3.Connection | None = None
     writer_task: asyncio.Task[None] | None = None
@@ -432,15 +441,17 @@ async def run_async(args: argparse.Namespace) -> int:
     target = 0
 
     try:
+        classifier = TitleAbstractClassifier(backend=backend)
         config = classifier.llm_config()
         LOG.info(
             "Classifier model=%s base_url=%s timeout=%ss max_tokens=%s "
-            "prompt_hash=%s max_parallel_requests=%d",
+            "prompt_hash=%s extra_body=%s max_parallel_requests=%d",
             config["model"],
             config["base_url"],
             config["timeout"],
             config["max_tokens"],
             config["prompt_hash"],
+            config["extra_body"],
             args.max_parallel_requests,
         )
         health = classifier.health_check()
@@ -581,8 +592,10 @@ async def run_async(args: argparse.Namespace) -> int:
             await asyncio.gather(writer_task, return_exceptions=True)
         if read_connection is not None:
             read_connection.close()
-        classifier.close()
-        await classifier.aclose()
+        try:
+            backend.close()
+        finally:
+            await backend.aclose()
 
     log_progress(progress, target, started)
     LOG.info("Finished. Failed rows remain NULL and can be retried.")
@@ -591,7 +604,7 @@ async def run_async(args: argparse.Namespace) -> int:
 
 def main() -> int:
     args = parse_args()
-    configure_logging(args.log_level, args.log_file)
+    configure_logging(args.log_level)
     try:
         return asyncio.run(run_async(args))
     except KeyboardInterrupt:

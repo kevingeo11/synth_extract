@@ -117,6 +117,19 @@ class PaperClassifier(ABC):
             for message in messages
         )
 
+    def render_full_message(self, *args: Any, **kwargs: Any) -> str:
+        """Render the complete request body without calling the model.
+
+        The concrete classifier first builds its input-specific messages. The
+        backend then renders the same model, messages, generation settings, and
+        structured response format used by real sync and async requests.
+        """
+        messages = self.build_messages(*args, **kwargs)
+        return self.backend.render_request(
+            messages=messages,
+            response_format=self.response_format(),
+        )
+
     @staticmethod
     def response_format() -> dict[str, Any]:
         """Return the strict JSON schema required from the model endpoint."""

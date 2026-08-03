@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
+import json
 import logging
 import sqlite3
 import sys
@@ -18,8 +20,9 @@ if str(REPO_ROOT) not in sys.path:
 from synth_extract.agents.classification import (  # noqa: E402
     ClassificationFailure,
     ClassificationResult,
-    PaperClassifier,
+    TitleAbstractClassifier,
 )
+from synth_extract.agents.llm import LLMBackend  # noqa: E402
 
 LOG = logging.getLogger("paper_classification")
 TABLE = "papers"
@@ -46,6 +49,16 @@ def positive_float(value: str) -> float:
     parsed = float(value)
     if parsed <= 0:
         raise argparse.ArgumentTypeError("must be greater than zero")
+    return parsed
+
+
+def json_object(value: str) -> dict[str, object]:
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError as exc:
+        raise argparse.ArgumentTypeError(f"invalid JSON: {exc}") from exc
+    if not isinstance(parsed, dict):
+        raise argparse.ArgumentTypeError("must be a JSON object")
     return parsed
 
 
@@ -113,6 +126,12 @@ def parse_args() -> argparse.Namespace:
         help="Maximum completion tokens (default: %(default)s)",
     )
     parser.add_argument(
+        "--extra-body",
+        type=json_object,
+        default=None,
+        help="Optional JSON object forwarded as OpenAI extra_body",
+    )
+    parser.add_argument(
         "--sqlite-timeout",
         type=positive_float,
         default=60.0,
@@ -124,25 +143,15 @@ def parse_args() -> argparse.Namespace:
         default="INFO",
         help="Logging verbosity (default: %(default)s)",
     )
-    parser.add_argument(
-        "--log-file",
-        type=Path,
-        default=None,
-        help="Optional log file; logs are always written to stderr",
-    )
     return parser.parse_args()
 
 
-def configure_logging(level: str, log_file: Path | None) -> None:
+def configure_logging(level: str) -> None:
     formatter = logging.Formatter(
         "%(asctime)s | %(levelname)s | %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
-    handlers: list[logging.Handler] = [logging.StreamHandler()]
-    if log_file is not None:
-        path = log_file.expanduser().resolve()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        handlers.append(logging.FileHandler(path, encoding="utf-8"))
+    handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
     for handler in handlers:
         handler.setFormatter(formatter)
     logging.basicConfig(
@@ -207,22 +216,40 @@ def run(args: argparse.Namespace) -> int:
         LOG.error("Database does not exist: %s", db_path)
         return 1
 
-    classifier = PaperClassifier(
+    backend = LLMBackend(
         model=args.model,
         base_url=args.base_url,
         api_key=args.api_key,
         temperature=0.0,
         timeout=args.timeout,
         max_tokens=args.max_tokens,
+        extra_body=args.extra_body,
     )
+    try:
+        classifier = TitleAbstractClassifier(backend=backend)
+        return run_with_classifier(args, db_path, classifier)
+    finally:
+        try:
+            backend.close()
+        finally:
+            asyncio.run(backend.aclose())
+
+
+def run_with_classifier(
+    args: argparse.Namespace,
+    db_path: Path,
+    classifier: TitleAbstractClassifier,
+) -> int:
     config = classifier.llm_config()
     LOG.info(
-        "Classifier model=%s base_url=%s timeout=%ss max_tokens=%s prompt_hash=%s",
+        "Classifier model=%s base_url=%s timeout=%ss max_tokens=%s "
+        "prompt_hash=%s extra_body=%s",
         config["model"],
         config["base_url"],
         config["timeout"],
         config["max_tokens"],
         config["prompt_hash"],
+        config["extra_body"],
     )
     health = classifier.health_check()
     if isinstance(health, ClassificationFailure):
@@ -370,7 +397,7 @@ def run(args: argparse.Namespace) -> int:
 
 def main() -> int:
     args = parse_args()
-    configure_logging(args.log_level, args.log_file)
+    configure_logging(args.log_level)
     try:
         return run(args)
     except Exception:

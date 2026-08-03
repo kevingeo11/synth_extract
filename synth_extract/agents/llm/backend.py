@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping, Sequence
 from typing import Any, Literal, NoReturn
 
@@ -60,6 +61,7 @@ class LLMBackend:
         temperature: float = 0.0,
         max_tokens: int = 64,
         timeout: float = 60.0,
+        extra_body: Mapping[str, Any] | None = None,
         **client_kwargs: Any,
     ) -> None:
         """Configure reusable clients and generation defaults.
@@ -67,7 +69,8 @@ class LLMBackend:
         All endpoint values are explicit; the backend does not inspect
         environment variables or supply provider-specific defaults. SDK
         retries are fixed at zero so each backend call represents exactly one
-        provider request.
+        provider request. ``extra_body`` carries optional model- or
+        provider-specific request fields without adding that logic here.
         """
         if not model.strip():
             raise ValueError("model must be a non-empty string")
@@ -82,6 +85,7 @@ class LLMBackend:
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.timeout = timeout
+        self.extra_body = dict(extra_body) if extra_body is not None else None
 
         if "max_retries" in client_kwargs:
             raise ValueError("LLMBackend fixes max_retries=0 by design.")
@@ -131,6 +135,19 @@ class LLMBackend:
         raised as :class:`LLMBackendError`; interpreting response content is
         the responsibility of the calling agent.
         """
+        request = self._build_completion_request(messages, response_format)
+
+        try:
+            return self._client.chat.completions.create(**request)
+        except Exception as exc:
+            self._raise_backend_error(exc)
+
+    def _build_completion_request(
+        self,
+        messages: Sequence[Mapping[str, Any]],
+        response_format: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Build the exact keyword arguments supplied to Chat Completions."""
         request: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
@@ -139,11 +156,25 @@ class LLMBackend:
         }
         if response_format is not None:
             request["response_format"] = response_format
+        if self.extra_body is not None:
+            request["extra_body"] = self.extra_body
+        return request
 
-        try:
-            return self._client.chat.completions.create(**request)
-        except Exception as exc:
-            self._raise_backend_error(exc)
+    def render_request(
+        self,
+        messages: Sequence[Mapping[str, Any]],
+        response_format: Mapping[str, Any] | None = None,
+    ) -> str:
+        """Render the complete Chat Completions request body as formatted JSON.
+
+        The output is built by the same helper used for real sync and async
+        calls, so it includes the model, all messages, generation settings, and
+        response format exactly as they will be passed to the SDK. Connection
+        details and the API key are intentionally excluded because they are not
+        part of the request body and may contain secrets.
+        """
+        request = self._build_completion_request(messages, response_format)
+        return json.dumps(request, indent=2, ensure_ascii=False)
 
     async def acreate_completion(
         self,
@@ -156,14 +187,7 @@ class LLMBackend:
         backend deliberately imposes no concurrency limit; the calling agent
         or application controls request scheduling.
         """
-        request: dict[str, Any] = {
-            "model": self.model,
-            "messages": messages,
-            "temperature": self.temperature,
-            "max_tokens": self.max_tokens,
-        }
-        if response_format is not None:
-            request["response_format"] = response_format
+        request = self._build_completion_request(messages, response_format)
 
         try:
             return await self._async_client.chat.completions.create(**request)
@@ -187,6 +211,7 @@ class LLMBackend:
             "max_tokens": self.max_tokens,
             "timeout": self.timeout,
             "max_retries": 0,
+            "extra_body": self.extra_body,
         }
 
     def close(self) -> None:
