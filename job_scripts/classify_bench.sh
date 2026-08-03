@@ -8,14 +8,12 @@
 #SBATCH --gpus=1
 #SBATCH --mem=128G
 #SBATCH --time=04:00:00
-#SBATCH --output=logs/%x-%j.out
+#SBATCH --output=/nobackup/proj/disk/naiss2024-5-630/personal/george/synth_extract/logs/%x-%j.out
+#SBATCH --error=/nobackup/proj/disk/naiss2024-5-630/personal/george/synth_extract/logs/%x-%j.err
 #SBATCH --mail-user=kevinge@chalmers.se
 #SBATCH --mail-type=BEGIN,END,FAIL
 
 set -euo pipefail
-
-cd "$SLURM_SUBMIT_DIR"
-mkdir -p logs
 
 BASE="/nobackup/proj/disk/naiss2024-5-630/personal/george"
 PROJECT_DIR="$BASE/synth_extract"
@@ -39,7 +37,7 @@ ASYNC_WRITE_BATCH_SIZE=25
 REQUEST_TIMEOUT_SECONDS="${REQUEST_TIMEOUT_SECONDS:-300}"
 
 DB_PATH="$PROJECT_DIR/data/central_workspace.db"
-LOG_DIR="$PROJECT_DIR/job_scripts"
+LOG_DIR="$PROJECT_DIR/logs"
 JOB_TAG="${SLURM_JOB_ID:-manual}"
 VLLM_LOG="$LOG_DIR/vllm-$JOB_TAG.log"
 SYNC_LOG="$LOG_DIR/classify-sync-$JOB_TAG.log"
