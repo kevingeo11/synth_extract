@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-import os
 import sqlite3
 import sys
 import time
@@ -24,7 +23,6 @@ from synth_extract.agents.classification import (  # noqa: E402
 
 LOG = logging.getLogger("paper_classification")
 TABLE = "papers"
-QWEN_PREFIX = "qwen"
 
 
 @dataclass
@@ -54,7 +52,7 @@ def positive_float(value: str) -> float:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Classify rows whose qwen-prefixed result column is NULL. "
+            "Classify rows whose selected result column is NULL. "
             "Successful True/False labels become 1/0; errors remain NULL."
         )
     )
@@ -65,19 +63,24 @@ def parse_args() -> argparse.Namespace:
         help="SQLite database path (default: %(default)s)",
     )
     parser.add_argument(
+        "--result-column",
+        required=True,
+        help="Existing database column in which classification labels are stored",
+    )
+    parser.add_argument(
         "--model",
-        default=os.getenv("LLM_MODEL", "qwen3.6-27b"),
-        help="Model ID (default: %(default)s)",
+        required=True,
+        help="Model ID exposed by the OpenAI-compatible server",
     )
     parser.add_argument(
         "--base-url",
-        default=os.getenv("LLM_BASE_URL", "http://127.0.0.1:8000/v1"),
-        help="OpenAI-compatible endpoint (default: %(default)s)",
+        required=True,
+        help="OpenAI-compatible API base URL",
     )
     parser.add_argument(
         "--api-key",
-        default=os.getenv("LLM_API_KEY", "not-required"),
-        help="API key; local vLLM normally ignores it",
+        required=True,
+        help="API key, or a placeholder value for servers that do not authenticate",
     )
     parser.add_argument(
         "--limit",
@@ -153,7 +156,10 @@ def quote_identifier(identifier: str) -> str:
     return '"' + identifier.replace('"', '""') + '"'
 
 
-def find_qwen_column(connection: sqlite3.Connection) -> str:
+def validate_result_column(
+    connection: sqlite3.Connection,
+    result_column: str,
+) -> str:
     columns = connection.execute(
         f"PRAGMA table_info({quote_identifier(TABLE)})"
     ).fetchall()
@@ -168,12 +174,11 @@ def find_qwen_column(connection: sqlite3.Connection) -> str:
             f"Table {TABLE!r} is missing required columns: {', '.join(missing)}"
         )
 
-    matches = [name for name in names if name.lower().startswith(QWEN_PREFIX)]
-    if len(matches) != 1:
+    if result_column not in names:
         raise RuntimeError(
-            f"Expected one column beginning with {QWEN_PREFIX!r}; found {matches}"
+            f"Result column {result_column!r} does not exist in table {TABLE!r}"
         )
-    return matches[0]
+    return result_column
 
 
 def normalize(value: object) -> str:
@@ -236,7 +241,7 @@ def run(args: argparse.Namespace) -> int:
     target = 0
 
     try:
-        result_column = find_qwen_column(connection)
+        result_column = validate_result_column(connection, args.result_column)
         table_sql = quote_identifier(TABLE)
         column_sql = quote_identifier(result_column)
         pending = int(
