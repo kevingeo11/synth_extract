@@ -19,9 +19,9 @@ BASE="/nobackup/proj/disk/naiss2024-5-630/personal/george"
 PROJECT_DIR="$BASE/synth_extract"
 ENV_PATH="$BASE/envs/vllm-extract"
 MODEL_DIR="$BASE/models"
-MODEL_PATH="$MODEL_DIR/Qwen3.6-27B"
-MODEL_NAME="qwen3.6-27b"
-RESULT_COLUMN="qwen3.6-27B"
+MODEL_PATH="$MODEL_DIR/gemma-3-27b-it" #gemma-3-27b-it, Qwen3.6-27B
+MODEL_NAME="gemma-3-27b-it" #qwen3.6-27b, gemma-3-27b-it
+RESULT_COLUMN="gemma-3-27b-it" #gemma-3-27b-it, qwen3.6-27B
 API_KEY="not-required"
 
 SERVER_HOST="127.0.0.1"
@@ -145,13 +145,24 @@ nvidia-smi \
 echo "============================================================"
 
 echo "Starting vLLM; server output is being written to $VLLM_LOG"
+# vllm serve "$MODEL_PATH" \
+#     --served-model-name "$MODEL_NAME" \
+#     --dtype bfloat16 \
+#     --max-model-len 65536 \
+#     --max-num-seqs "$MAX_PARALLEL_REQUESTS" \
+#     --language-model-only \
+#     --reasoning-parser qwen3 \
+#     --enable-prefix-caching \
+#     --gpu-memory-utilization 0.90 \
+#     --host "$SERVER_HOST" \
+#     --port "$SERVER_PORT" \
+#     >"$VLLM_LOG" 2>&1 &
 vllm serve "$MODEL_PATH" \
     --served-model-name "$MODEL_NAME" \
     --dtype bfloat16 \
     --max-model-len 65536 \
     --max-num-seqs "$MAX_PARALLEL_REQUESTS" \
     --language-model-only \
-    --reasoning-parser qwen3 \
     --enable-prefix-caching \
     --gpu-memory-utilization 0.90 \
     --host "$SERVER_HOST" \
