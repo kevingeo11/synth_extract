@@ -1,5 +1,6 @@
 langchain-core
 langchain-openai
+openai
 marker-pdf
 pypdf
 pydantic
