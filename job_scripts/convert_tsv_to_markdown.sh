@@ -17,7 +17,7 @@ set -euo pipefail
 
 BASE="/nobackup/proj/disk/naiss2024-5-630/personal/george"
 PROJECT_DIR="$BASE/synth_extract"
-ENV_PATH="$BASE/envs/extract"
+ENV_PATH="$BASE/envs/vllm-extract"
 
 # Override these when submitting if a different source or location is needed:
 # sbatch --export=ALL,CANONICAL_SOURCE=wiley job_scripts/convert_tsv_to_markdown.sh
