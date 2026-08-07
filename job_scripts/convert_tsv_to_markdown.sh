@@ -25,6 +25,26 @@ CANONICAL_SOURCE="${CANONICAL_SOURCE:-arxiv}"
 TSV_PATH="${TSV_PATH:-$PROJECT_DIR/data/development_set/development_sample.tsv}"
 FULLTEXT_ROOT="${FULLTEXT_ROOT:-$PROJECT_DIR/data/development_set}"
 LOG_DIR="$PROJECT_DIR/logs"
+SERVER_HOST="127.0.0.1"
+SERVER_PORT="8000"
+SERVER_URL="http://$SERVER_HOST:$SERVER_PORT"
+SERVER_START_TIMEOUT_SECONDS=600
+SURYA_MODEL="datalab-to/surya-ocr-2"
+JOB_TAG="${SLURM_JOB_ID:-manual}"
+VLLM_LOG="$LOG_DIR/surya-vllm-$JOB_TAG.log"
+VLLM_PID=""
+
+cleanup() {
+    if [[ -n "$VLLM_PID" ]] && kill -0 "$VLLM_PID" 2>/dev/null; then
+        echo "Stopping Surya vLLM server (PID $VLLM_PID)"
+        kill "$VLLM_PID" 2>/dev/null || true
+        wait "$VLLM_PID" 2>/dev/null || true
+    fi
+}
+
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 mkdir -p "$LOG_DIR"
 cd "$PROJECT_DIR"
@@ -41,6 +61,10 @@ export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-4}"
 export XDG_CACHE_HOME="$BASE/cache"
 export TORCH_HOME="$BASE/cache/torch"
 export HF_HOME="$BASE/cache/huggingface"
+export HF_HUB_CACHE="$HF_HOME/hub"
+export SURYA_INFERENCE_BACKEND="vllm"
+export SURYA_INFERENCE_URL="$SERVER_URL/v1"
+export SURYA_INFERENCE_AUTOSTART="false"
 
 for required_path in \
     "$ENV_PATH" \
@@ -53,7 +77,7 @@ for required_path in \
     fi
 done
 
-for required_command in python nvidia-smi; do
+for required_command in python nvidia-smi vllm curl; do
     if ! command -v "$required_command" >/dev/null 2>&1; then
         echo "Required command is unavailable: $required_command" >&2
         exit 1
@@ -68,11 +92,46 @@ echo "Node:              $(hostname)"
 echo "Canonical source:  $CANONICAL_SOURCE"
 echo "TSV:               $TSV_PATH"
 echo "Full-text root:    $FULLTEXT_ROOT"
+echo "Surya model:       $SURYA_MODEL"
+echo "Surya API URL:     $SURYA_INFERENCE_URL"
+echo "vLLM log:          $VLLM_LOG"
 echo "Environment:       ${CONDA_PREFIX:-not activated}"
 echo "Started:           $(date)"
 echo
 nvidia-smi --query-gpu=index,name,memory.total --format=csv,noheader
 echo "============================================================"
+
+echo "Starting the Surya OCR vLLM server..."
+vllm serve "$SURYA_MODEL" \
+    --host "$SERVER_HOST" \
+    --port "$SERVER_PORT" \
+    --dtype bfloat16 \
+    --max-model-len 18000 \
+    --gpu-memory-utilization 0.85 \
+    >"$VLLM_LOG" 2>&1 &
+
+VLLM_PID=$!
+server_wait_started=$SECONDS
+
+echo "Waiting up to $SERVER_START_TIMEOUT_SECONDS seconds for Surya vLLM..."
+until curl -sf "$SERVER_URL/v1/models" >/dev/null; do
+    if ! kill -0 "$VLLM_PID" 2>/dev/null; then
+        echo "Surya vLLM failed to start. Last 100 log lines:" >&2
+        tail -n 100 "$VLLM_LOG" >&2 || true
+        exit 1
+    fi
+
+    if (( SECONDS - server_wait_started >= SERVER_START_TIMEOUT_SECONDS )); then
+        echo "Timed out after $SERVER_START_TIMEOUT_SECONDS seconds waiting for Surya vLLM." >&2
+        echo "Last 100 log lines:" >&2
+        tail -n 100 "$VLLM_LOG" >&2 || true
+        exit 1
+    fi
+
+    sleep 2
+done
+
+echo "Surya vLLM is ready."
 
 python scripts/convert_tsv_to_markdown.py \
     --tsv "$TSV_PATH" \
