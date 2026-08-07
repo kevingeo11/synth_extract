@@ -39,8 +39,8 @@ def _output_folder_for_pdf(pdf_path: Path, output_markdown_path: Path) -> Path:
 
 
 def pdf_to_markdown(
-    pdf_path: str,
-    output_markdown_path: str,
+    pdf_path: str | Path,
+    output_dir: str | Path | None = None,
     markdown_only: bool = False,
 ) -> None:
     """
@@ -48,10 +48,11 @@ def pdf_to_markdown(
 
     Parameters
     ----------
-    pdf_path : str
+    pdf_path : str or pathlib.Path
         Path to input PDF.
-    output_markdown_path : str
-        Path where markdown file will be saved.
+    output_dir : str or pathlib.Path, optional
+        Folder in which to save the generated files. When omitted, files are
+        saved in the folder containing the input PDF.
     markdown_only : bool, optional
         If True, save only the rendered markdown file. If False, also save
         extracted images and metadata.
@@ -61,8 +62,7 @@ def pdf_to_markdown(
     from marker.models import create_model_dict
 
     pdf_path = Path(pdf_path)
-    output_markdown_path = Path(output_markdown_path)
-    output_folder = _output_folder_for_pdf(pdf_path, output_markdown_path)
+    output_folder = Path(output_dir) if output_dir is not None else pdf_path.parent
 
     converter = PdfConverter(
         artifact_dict=create_model_dict()
