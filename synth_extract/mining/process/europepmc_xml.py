@@ -184,6 +184,19 @@ def _render_inline(element) -> str:
     tag = _local_name(element)
     if not tag or tag in {"supplementary-material", "graphic", "inline-graphic"}:
         return ""
+    if tag == "glyph-data":
+        return ""
+    if tag == "private-char":
+        name = (element.get("name") or element.get("description") or "").upper()
+        for marker, replacement in (
+            ("TRIPLE BOND", "≡"),
+            ("DOUBLE BOND", "="),
+            ("SINGLE BOND", "–"),
+        ):
+            if marker in name:
+                return replacement
+        LOG.warning("Skipping unsupported JATS private character: %s", name or "unknown")
+        return ""
 
     content = _render_inline_content(element)
     if tag == "italic":
@@ -252,6 +265,18 @@ def _figure_to_markdown(figure) -> str:
     return f"**{title}**" if title else ""
 
 
+def _table_cell_to_markdown(cell) -> str:
+    """Render table-cell paragraphs as distinct lines."""
+    paragraphs = cell.xpath("./*[local-name()='p']")
+    if paragraphs:
+        return "<br>".join(
+            text
+            for paragraph in paragraphs
+            if (text := _paragraph_to_markdown(paragraph))
+        )
+    return _render_inline_content(cell).strip()
+
+
 def _table_to_markdown(table_wrap) -> str:
     parts: list[str] = []
     labels = table_wrap.xpath("./*[local-name()='label'][1]")
@@ -267,28 +292,70 @@ def _table_to_markdown(table_wrap) -> str:
         LOG.warning("A <table-wrap> element contains no <table>")
         return "\n\n".join(parts)
 
-    rows: list[list[str]] = []
+    logical_rows: list[tuple[list[str], bool]] = []
+    active_rowspans: dict[int, tuple[int, str]] = {}
     for row in tables[0].xpath(".//*[local-name()='tr']"):
-        cells = []
+        grid: dict[int, str] = {}
+        for column, (remaining, value) in list(active_rowspans.items()):
+            grid[column] = value
+            if remaining <= 1:
+                del active_rowspans[column]
+            else:
+                active_rowspans[column] = (remaining - 1, value)
+
+        cursor = 0
         for cell in row:
             if _local_name(cell) not in {"th", "td"}:
                 continue
-            cell_text = (
-                _render_inline_content(cell)
-                .strip()
-                .replace("|", r"\|")
-                .replace("\n", " ")
-            )
-            cells.append(cell_text)
-        if cells:
-            rows.append(cells)
+            while cursor in grid:
+                cursor += 1
+            cell_text = _table_cell_to_markdown(cell).replace("|", r"\|")
+            cell_text = cell_text.replace("\n", " ")
+            try:
+                colspan = max(1, int(cell.get("colspan", "1")))
+                rowspan = max(1, int(cell.get("rowspan", "1")))
+            except ValueError:
+                colspan = rowspan = 1
 
-    if not rows:
+            occupied_columns = []
+            for _ in range(colspan):
+                while cursor in grid:
+                    cursor += 1
+                grid[cursor] = cell_text
+                occupied_columns.append(cursor)
+                cursor += 1
+            if rowspan > 1:
+                for column in occupied_columns:
+                    active_rowspans[column] = (rowspan - 1, cell_text)
+
+        if grid:
+            width = max(grid) + 1
+            values = [grid.get(column, "") for column in range(width)]
+            is_header = any(_local_name(parent) == "thead" for parent in row.iterancestors())
+            logical_rows.append((values, is_header))
+
+    if not logical_rows:
         return "\n\n".join(parts)
 
-    column_count = max(len(row) for row in rows)
-    rows = [row + [""] * (column_count - len(row)) for row in rows]
-    header, *body = rows
+    column_count = max(len(row) for row, _ in logical_rows)
+    rows = [
+        (row + [""] * (column_count - len(row)), is_header)
+        for row, is_header in logical_rows
+    ]
+    header_rows = [row for row, is_header in rows if is_header]
+    body = [row for row, is_header in rows if not is_header]
+    if header_rows:
+        header = []
+        for column in range(column_count):
+            values = []
+            for row in header_rows:
+                value = row[column]
+                if value and value not in values:
+                    values.append(value)
+            header.append("<br>".join(values))
+    else:
+        header, *body = [row for row, _ in rows]
+
     markdown_rows = [
         "| " + " | ".join(header) + " |",
         "| " + " | ".join(["---"] * column_count) + " |",
@@ -313,6 +380,10 @@ def _paragraph_to_markdown(paragraph) -> str:
                 parts.append(f"\n\n{rendered}\n\n")
         elif tag == "table-wrap":
             rendered = _table_to_markdown(child)
+            if rendered:
+                parts.append(f"\n\n{rendered}\n\n")
+        elif tag == "list":
+            rendered = _list_to_markdown(child)
             if rendered:
                 parts.append(f"\n\n{rendered}\n\n")
         else:
