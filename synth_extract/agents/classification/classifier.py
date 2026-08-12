@@ -27,6 +27,9 @@ _TITLE_ABSTRACT_SYSTEM_PROMPT_PATH = (
 _TITLE_ABSTRACT_USER_TEMPLATE_PATH = (
     _TITLE_ABSTRACT_PROMPT_DIR / "user_template.md"
 )
+_FULL_TEXT_PROMPT_DIR = _PROMPT_DIR / "full_text"
+_FULL_TEXT_SYSTEM_PROMPT_PATH = _FULL_TEXT_PROMPT_DIR / "system_prompt.md"
+_FULL_TEXT_USER_TEMPLATE_PATH = _FULL_TEXT_PROMPT_DIR / "user_template.md"
 
 
 class PaperClassifier(ABC):
@@ -369,14 +372,93 @@ class TitleAbstractClassifier(PaperClassifier):
 
 
 class FullTextClassifier(PaperClassifier):
-    """Placeholder for a future full-text paper-classification strategy.
+    """Classify a paper from its full text.
 
-    The class intentionally implements no input validation, message building,
-    or classification entry point yet. It consequently remains abstract and
-    cannot be instantiated until full-text behavior and prompts are defined.
+    The input must contain non-whitespace text. Sync and async methods return
+    either a strictly validated :class:`ClassificationResult` or a
+    :class:`ClassificationFailure`; they never silently invent a label.
     """
 
-    pass
+    def __init__(
+        self,
+        backend: LLMBackend,
+        system_prompt_path: str | Path | None = None,
+        user_template_path: str | Path | None = None,
+    ) -> None:
+        """Load full-text prompts and bind the supplied backend."""
+        super().__init__(
+            backend=backend,
+            system_prompt_path=(
+                system_prompt_path or _FULL_TEXT_SYSTEM_PROMPT_PATH
+            ),
+            user_template_path=(
+                user_template_path or _FULL_TEXT_USER_TEMPLATE_PATH
+            ),
+        )
+
+    def build_messages(self, fulltext: str) -> list[dict[str, str]]:
+        """Build the exact system and user messages without calling the model."""
+        fulltext = fulltext.strip()
+        return [
+            {"role": "system", "content": self._system_prompt},
+            {
+                "role": "user",
+                "content": self._user_template.format(fulltext=fulltext),
+            },
+        ]
+
+    def render_prompt(self, fulltext: str) -> str:
+        """Return a readable rendering of the exact messages to be sent."""
+        return self._render_messages(self.build_messages(fulltext))
+
+    @staticmethod
+    def _validate_input(fulltext: str) -> ClassificationFailure | None:
+        """Return an input failure when the full text is empty."""
+        if not fulltext.strip():
+            return ClassificationFailure(
+                error_type="input",
+                message="Full text must be non-empty.",
+            )
+        return None
+
+    def classify_raw(self, fulltext: str) -> Any | ClassificationFailure:
+        """Return the raw synchronous completion or an explicit failure."""
+        input_failure = self._validate_input(fulltext)
+        if input_failure is not None:
+            return input_failure
+        try:
+            messages = self.build_messages(fulltext)
+        except Exception as exc:
+            return self._request_failure(exc)
+        return self._classify_messages_raw(messages)
+
+    def classify(self, fulltext: str) -> ClassificationOutcome:
+        """Synchronously classify one paper's full text."""
+        completion = self.classify_raw(fulltext)
+        if isinstance(completion, ClassificationFailure):
+            return completion
+        return self._parse_completion(completion)
+
+    async def aclassify_raw(
+        self,
+        fulltext: str,
+    ) -> Any | ClassificationFailure:
+        """Return the raw asynchronous completion or an explicit failure."""
+        input_failure = self._validate_input(fulltext)
+        if input_failure is not None:
+            return input_failure
+        try:
+            messages = self.build_messages(fulltext)
+        except Exception as exc:
+            return self._request_failure(exc)
+        return await self._aclassify_messages_raw(messages)
+
+    async def aclassify(self, fulltext: str) -> ClassificationOutcome:
+        """Asynchronously classify one paper's full text."""
+        completion = await self.aclassify_raw(fulltext)
+        if isinstance(completion, ClassificationFailure):
+            return completion
+        return self._parse_completion(completion)
 
 
 __all__ = [
