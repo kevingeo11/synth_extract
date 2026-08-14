@@ -101,6 +101,22 @@ class PaperClassifier(ABC):
         self._system_prompt = self._load_prompt(self.system_prompt_path)
         self._user_template = self._load_prompt(self.user_template_path)
 
+    def update_prompt_paths(
+        self,
+        system_prompt_path: str | Path | None = None,
+        user_template_path: str | Path | None = None,
+    ) -> None:
+        """Update either prompt path and reload the active prompt text.
+
+        Paths that are not supplied remain unchanged. Passing neither path
+        simply reloads the currently configured prompt files.
+        """
+        if system_prompt_path is not None:
+            self.system_prompt_path = Path(system_prompt_path)
+        if user_template_path is not None:
+            self.user_template_path = Path(user_template_path)
+        self.reload_prompts()
+
     def system_prompt(self) -> str:
         """Return the active system prompt exactly as sent to the model."""
         return self._system_prompt
