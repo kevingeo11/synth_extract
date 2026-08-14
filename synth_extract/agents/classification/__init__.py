@@ -9,13 +9,17 @@ from .schemas import (
     ClassificationFailure,
     ClassificationOutcome,
     ClassificationResult,
+    CompletionMetadata,
+    TokenUsage,
 )
 
 __all__ = [
     "ClassificationFailure",
     "ClassificationOutcome",
     "ClassificationResult",
+    "CompletionMetadata",
     "FullTextClassifier",
     "PaperClassifier",
     "TitleAbstractClassifier",
+    "TokenUsage",
 ]

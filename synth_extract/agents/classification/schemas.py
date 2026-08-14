@@ -7,6 +7,29 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class TokenUsage(BaseModel):
+    """Token consumption reported by the provider."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    total_tokens: int | None = None
+
+
+class CompletionMetadata(BaseModel):
+    """Useful metadata taken from the raw ChatCompletion."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    model: str | None = None
+    created: int | None = None
+    finish_reason: str | None = None
+    stop_reason: str | None = None
+    reasoning: str | None = None
+    usage: TokenUsage | None = None
+
+
 class ClassificationResult(BaseModel):
     """A binary paper-classification result."""
 
@@ -15,6 +38,7 @@ class ClassificationResult(BaseModel):
     label: bool = Field(
         description="Whether the paper matches the classification criteria."
     )
+    metadata: CompletionMetadata
 
 
 class ClassificationFailure(BaseModel):
@@ -44,4 +68,6 @@ __all__ = [
     "ClassificationFailure",
     "ClassificationOutcome",
     "ClassificationResult",
+    "CompletionMetadata",
+    "TokenUsage",
 ]
