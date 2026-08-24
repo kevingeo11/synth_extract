@@ -44,15 +44,8 @@ class PdfMarkdownConverter:
         from marker.converters.pdf import PdfConverter
         from marker.models import create_model_dict
 
-        config = {
-            "disable_ocr": True,
-            "disable_image_extraction": True,
-            "output_format": "markdown",
-        }
-
         self._converter = PdfConverter(
             artifact_dict=create_model_dict(),
-            config=config
         )
 
     def convert(
