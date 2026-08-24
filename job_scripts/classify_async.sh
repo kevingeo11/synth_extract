@@ -7,7 +7,7 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --gpus=1
 #SBATCH --mem=128G
-#SBATCH --time=04:00:00
+#SBATCH --time=24:00:00
 #SBATCH --output=/nobackup/proj/disk/naiss2024-5-630/personal/george/synth_extract/logs/%x-%j.out
 #SBATCH --error=/nobackup/proj/disk/naiss2024-5-630/personal/george/synth_extract/logs/%x-%j.out
 #SBATCH --mail-user=kevinge@chalmers.se
@@ -21,29 +21,31 @@ ENV_PATH="$BASE/envs/vllm-extract"
 MODEL_DIR="$BASE/models"
 
 # Model and destination column. Keep these three values aligned.
-MODEL_PATH="$MODEL_DIR/gemma-3-27b-it" #gemma-3-27b-it, Qwen3.6-27B
+MODEL_PATH="$MODEL_DIR/gemma-3-27b-it" #gemma-3-27b-it, qwen3.6-27b
 MODEL_NAME="gemma-3-27b-it" #qwen3.6-27b, gemma-3-27b-it
-RESULT_COLUMN="gemma-3-27b-it" #gemma-3-27b-it, qwen3.6-27B
+RESULT_COLUMN="gemma" #gemma, qwen
 API_KEY="not-required"
 
 SERVER_HOST="127.0.0.1"
-SERVER_PORT="8000"
+SERVER_PORT="8001"
 SERVER_URL="http://$SERVER_HOST:$SERVER_PORT"
 BASE_URL="$SERVER_URL/v1"
 SERVER_START_TIMEOUT_SECONDS="${SERVER_START_TIMEOUT_SECONDS:-1800}"
 
 # Classification workload.
-LIMIT=1000
+# Optional: set a maximum number of papers to classify.
+# LIMIT=2000
 READ_BATCH_SIZE=1000
 MAX_PARALLEL_REQUESTS=96
 WRITE_BATCH_SIZE=25
 REQUEST_TIMEOUT_SECONDS=300
-MAX_TOKENS=10000
+MAX_TOKENS=8192
 LOG_EVERY=100
 
 # Optional JSON object for model/provider-specific request fields.
 # Example: EXTRA_BODY_JSON='{"chat_template_kwargs":{"enable_thinking":false}}'
 EXTRA_BODY_JSON=""
+# EXTRA_BODY_JSON='{"chat_template_kwargs":{"enable_thinking":false}}'
 
 DB_PATH="$PROJECT_DIR/data/central_workspace.db"
 LOG_DIR="$PROJECT_DIR/logs"
@@ -141,7 +143,7 @@ echo "Python:             $(command -v python)"
 echo "Python version:     $(python --version 2>&1)"
 echo "Model:              $MODEL_NAME"
 echo "Result column:      $RESULT_COLUMN"
-echo "Paper limit:        $LIMIT"
+echo "Paper limit:        ${LIMIT:-not set}"
 echo "Read batch size:    $READ_BATCH_SIZE"
 echo "Parallel requests:  $MAX_PARALLEL_REQUESTS"
 echo "Write batch size:   $WRITE_BATCH_SIZE"
@@ -219,7 +221,6 @@ CLASSIFIER_ARGS=(
     --model "$MODEL_NAME"
     --base-url "$BASE_URL"
     --api-key "$API_KEY"
-    --limit "$LIMIT"
     --batch-size "$READ_BATCH_SIZE"
     --max-parallel-requests "$MAX_PARALLEL_REQUESTS"
     --write-batch-size "$WRITE_BATCH_SIZE"
@@ -227,6 +228,10 @@ CLASSIFIER_ARGS=(
     --max-tokens "$MAX_TOKENS"
     --log-every "$LOG_EVERY"
 )
+
+if [[ -n "${LIMIT:-}" ]]; then
+    CLASSIFIER_ARGS+=(--limit "$LIMIT")
+fi
 
 if [[ -n "$EXTRA_BODY_JSON" ]]; then
     CLASSIFIER_ARGS+=(--extra-body "$EXTRA_BODY_JSON")
