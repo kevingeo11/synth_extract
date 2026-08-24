@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 #SBATCH --account=naiss2026-3-549-gpu
 #SBATCH --partition=gpu
-#SBATCH --job-name=wiley-pdf-to-md-dev
+#SBATCH --job-name=wiley-pdf-to-md
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
+#SBATCH --cpus-per-task=16
 #SBATCH --gpus=1
 #SBATCH --mem=32G
-#SBATCH --time=12:00:00
+#SBATCH --time=70:00:00
 #SBATCH --output=/nobackup/proj/disk/naiss2024-5-630/personal/george/synth_extract/logs/%x-%j.out
 #SBATCH --error=/nobackup/proj/disk/naiss2024-5-630/personal/george/synth_extract/logs/%x-%j.out
 #SBATCH --mail-user=kevinge@chalmers.se
@@ -19,12 +19,12 @@ BASE="/nobackup/proj/disk/naiss2024-5-630/personal/george"
 PROJECT_DIR="$BASE/synth_extract"
 ENV_PATH="$BASE/envs/vllm-extract"
 
-DB_PATH="$PROJECT_DIR/data/development_set/wiley_track.db"
-FULLTEXT_ROOT="$PROJECT_DIR/data/development_set"
+DB_PATH="${DB_PATH:-$PROJECT_DIR/data/process/wiley_track.db}"
+FULLTEXT_ROOT="${FULLTEXT_ROOT:-$PROJECT_DIR/data/fulltext}"
 LOG_DIR="$PROJECT_DIR/logs"
-COMMIT_EVERY="${COMMIT_EVERY:-1}"
+COMMIT_EVERY="${COMMIT_EVERY:-25}"
 SERVER_HOST="127.0.0.1"
-SERVER_PORT="8000"
+SERVER_PORT="${SERVER_PORT:-8000}"
 SERVER_URL="http://$SERVER_HOST:$SERVER_PORT"
 SERVER_START_TIMEOUT_SECONDS=600
 SURYA_MODEL="datalab-to/surya-ocr-2"
@@ -91,6 +91,7 @@ done
 echo "============================================================"
 echo "Wiley development-set PDF-to-Markdown conversion"
 echo "============================================================"
+echo "Job name:          ${SLURM_JOB_NAME:-unknown}"
 echo "Job ID:            ${SLURM_JOB_ID:-unknown}"
 echo "Node:              $(hostname)"
 echo "Working directory: $(pwd)"

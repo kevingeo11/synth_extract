@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #SBATCH --account=naiss2026-3-549-cpu
 #SBATCH --partition=cpu
-#SBATCH --job-name=s2orc-json-to-md-dev
+#SBATCH --job-name=s2orc-json-to-md
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=8G
-#SBATCH --time=04:00:00
+#SBATCH --time=70:00:00
 #SBATCH --output=/nobackup/proj/disk/naiss2024-5-630/personal/george/synth_extract/logs/%x-%j.out
 #SBATCH --error=/nobackup/proj/disk/naiss2024-5-630/personal/george/synth_extract/logs/%x-%j.out
 #SBATCH --mail-user=kevinge@chalmers.se
@@ -18,10 +18,10 @@ BASE="/nobackup/proj/disk/naiss2024-5-630/personal/george"
 PROJECT_DIR="$BASE/synth_extract"
 ENV_PATH="$BASE/envs/extract"
 
-DB_PATH="$PROJECT_DIR/data/development_set/s2orc_track.db"
-FULLTEXT_ROOT="$PROJECT_DIR/data/development_set"
+DB_PATH="$PROJECT_DIR/data/process/s2orc_track.db"
+FULLTEXT_ROOT="$PROJECT_DIR/data/fulltext"
 LOG_DIR="$PROJECT_DIR/logs"
-COMMIT_EVERY="${COMMIT_EVERY:-1}"
+COMMIT_EVERY="${COMMIT_EVERY:-25}"
 
 mkdir -p "$LOG_DIR"
 cd "$PROJECT_DIR"
