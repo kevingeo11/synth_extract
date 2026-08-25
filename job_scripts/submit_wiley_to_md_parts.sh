@@ -38,4 +38,9 @@ for ((part_number = 1; part_number <= PART_COUNT; part_number++)); do
         --job-name="$job_name" \
         --export="ALL,DB_PATH=$part_db,SERVER_PORT=$server_port" \
         "$WORKER_JOB"
+
+    if ((part_number < PART_COUNT)); then
+        echo "Waiting 60 seconds before the next submission..."
+        sleep 60
+    fi
 done
