@@ -6,8 +6,8 @@ BASE="/nobackup/proj/disk/naiss2024-5-630/personal/george"
 PROJECT_DIR="$BASE/synth_extract"
 PROCESS_DIR="$PROJECT_DIR/data/process"
 WORKER_JOB="$PROJECT_DIR/job_scripts/convert_wiley_to_md.sh"
-PART_COUNT=36
 FIRST_PORT=8001
+WILEY_PARTS=(3 4 12 16 26 32 33 36)
 
 if ! command -v sbatch >/dev/null 2>&1; then
     echo "Required command is unavailable: sbatch" >&2
@@ -20,7 +20,7 @@ if [[ ! -f "$WORKER_JOB" ]]; then
 fi
 
 # Validate every input before submitting any jobs, avoiding a partial launch.
-for ((part_number = 1; part_number <= PART_COUNT; part_number++)); do
+for part_number in "${WILEY_PARTS[@]}"; do
     part_db="$PROCESS_DIR/wiley_track_part_${part_number}.db"
     if [[ ! -f "$part_db" ]]; then
         echo "Wiley part database does not exist: $part_db" >&2
@@ -28,7 +28,8 @@ for ((part_number = 1; part_number <= PART_COUNT; part_number++)); do
     fi
 done
 
-for ((part_number = 1; part_number <= PART_COUNT; part_number++)); do
+for part_index in "${!WILEY_PARTS[@]}"; do
+    part_number="${WILEY_PARTS[$part_index]}"
     part_db="$PROCESS_DIR/wiley_track_part_${part_number}.db"
     server_port=$((FIRST_PORT + part_number - 1))
     job_name="wiley-pdf-to-md-part-${part_number}"
@@ -39,7 +40,7 @@ for ((part_number = 1; part_number <= PART_COUNT; part_number++)); do
         --export="ALL,DB_PATH=$part_db,SERVER_PORT=$server_port" \
         "$WORKER_JOB"
 
-    if ((part_number < PART_COUNT)); then
+    if ((part_index < ${#WILEY_PARTS[@]} - 1)); then
         echo "Waiting 60 seconds before the next submission..."
         sleep 60
     fi
