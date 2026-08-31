@@ -30,15 +30,37 @@ class CompletionMetadata(BaseModel):
     usage: TokenUsage | None = None
 
 
-class ClassificationResult(BaseModel):
-    """A binary paper-classification result."""
+class LegacyClassificationResult(BaseModel):
+    """Deprecated result schema retained for future reuse.
 
-    model_config = ConfigDict(extra="forbid", strict=True)
+    Use :class:`ClassificationResult` for new classifications.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+        strict=True,
+        json_schema_extra={"deprecated": True},
+    )
 
     label: bool = Field(
         description="Whether the paper matches the classification criteria."
     )
     metadata: CompletionMetadata
+
+
+class ClassificationResult(LegacyClassificationResult):
+    """A paper-classification result with an optional category."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        strict=True,
+        json_schema_extra={},
+    )
+
+    category: str | None = Field(
+        default=None,
+        description="The classification category, when one is available.",
+    )
 
 
 class ClassificationFailure(BaseModel):
