@@ -4,9 +4,9 @@
 #SBATCH --job-name=arxiv-pdf-to-md
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=16
+#SBATCH --cpus-per-task=8
 #SBATCH --gpus=1
-#SBATCH --mem=32G
+#SBATCH --mem=128G
 #SBATCH --time=70:00:00
 #SBATCH --output=/nobackup/proj/disk/naiss2024-5-630/personal/george/synth_extract/logs/%x-%j.out
 #SBATCH --error=/nobackup/proj/disk/naiss2024-5-630/personal/george/synth_extract/logs/%x-%j.out

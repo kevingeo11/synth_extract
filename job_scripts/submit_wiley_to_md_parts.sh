@@ -7,7 +7,7 @@ PROJECT_DIR="$BASE/synth_extract"
 PROCESS_DIR="$PROJECT_DIR/data/process"
 WORKER_JOB="$PROJECT_DIR/job_scripts/convert_wiley_to_md.sh"
 FIRST_PORT=8001
-WILEY_PARTS=(3 12 26 32 33)
+WILEY_PARTS=(12 32 33)
 
 if ! command -v sbatch >/dev/null 2>&1; then
     echo "Required command is unavailable: sbatch" >&2
