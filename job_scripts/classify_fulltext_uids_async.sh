@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#SBATCH --account=naiss2026-3-549-gpu
+#SBATCH --account=naiss2026-3-679-gpu
 #SBATCH --partition=gpu
 #SBATCH --job-name=classify-fulltext-uids
 #SBATCH --nodes=1
@@ -10,8 +10,6 @@
 #SBATCH --time=48:00:00
 #SBATCH --output=/nobackup/proj/disk/naiss2024-5-630/personal/george/synth_extract/logs/%x-%j.out
 #SBATCH --error=/nobackup/proj/disk/naiss2024-5-630/personal/george/synth_extract/logs/%x-%j.err
-#SBATCH --mail-user=kevinge@chalmers.se
-#SBATCH --mail-type=BEGIN,END,FAIL
 
 set -euo pipefail
 
@@ -90,9 +88,9 @@ SERVER_START_TIMEOUT_SECONDS="${SERVER_START_TIMEOUT_SECONDS:-1800}"
 
 BATCH_SIZE="${BATCH_SIZE:-25}"
 MAX_PARALLEL_REQUESTS="${MAX_PARALLEL_REQUESTS:-8}"
-VLLM_MAX_NUM_SEQS="${VLLM_MAX_NUM_SEQS:-96}"
+VLLM_MAX_NUM_SEQS="${VLLM_MAX_NUM_SEQS:-16}"
 REQUEST_TIMEOUT_SECONDS="${REQUEST_TIMEOUT_SECONDS:-300}"
-MAX_TOKENS="${MAX_TOKENS:-8192}"
+MAX_TOKENS="${MAX_TOKENS:-16384}"
 SQLITE_TIMEOUT_SECONDS="${SQLITE_TIMEOUT_SECONDS:-60}"
 SQLITE_WRITE_RETRIES="${SQLITE_WRITE_RETRIES:-5}"
 SQLITE_RETRY_BASE_DELAY="${SQLITE_RETRY_BASE_DELAY:-1}"
@@ -182,7 +180,7 @@ nvidia-smi || true
 vllm serve "$MODEL_PATH" \
     --served-model-name "$MODEL_NAME" \
     --dtype bfloat16 \
-    --max-model-len 65536 \
+    --max-model-len 262144 \
     --max-num-seqs "$VLLM_MAX_NUM_SEQS" \
     --language-model-only \
     --reasoning-parser qwen3 \
