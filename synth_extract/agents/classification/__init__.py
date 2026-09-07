@@ -1,11 +1,15 @@
-"""Binary paper classification over OpenAI-compatible APIs."""
+"""Paper classification over OpenAI-compatible APIs."""
 
+from .category_classifier import CategoryClassifier
 from .classifier import (
     FullTextClassifier,
     PaperClassifier,
     TitleAbstractClassifier,
 )
 from .schemas import (
+    CategoryClassificationOutcome,
+    CategoryClassificationResult,
+    ClassificationCategory,
     ClassificationFailure,
     ClassificationOutcome,
     ClassificationResult,
@@ -14,6 +18,10 @@ from .schemas import (
 )
 
 __all__ = [
+    "CategoryClassifier",
+    "CategoryClassificationOutcome",
+    "CategoryClassificationResult",
+    "ClassificationCategory",
     "ClassificationFailure",
     "ClassificationOutcome",
     "ClassificationResult",

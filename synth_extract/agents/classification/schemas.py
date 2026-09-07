@@ -7,6 +7,13 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 
+ClassificationCategory = Literal[
+    "polymer_synthesis",
+    "polymer_modification_combination",
+    "polymer_composite_formulation",
+]
+
+
 class TokenUsage(BaseModel):
     """Token consumption reported by the provider."""
 
@@ -41,6 +48,17 @@ class ClassificationResult(BaseModel):
     metadata: CompletionMetadata
 
 
+class CategoryClassificationResult(BaseModel):
+    """A polymer material-creation category with completion metadata."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    category: ClassificationCategory = Field(
+        description="Material-creation category."
+    )
+    metadata: CompletionMetadata
+
+
 class ClassificationFailure(BaseModel):
     """A local description of why classification did not produce a label."""
 
@@ -62,9 +80,15 @@ class ClassificationFailure(BaseModel):
 
 
 ClassificationOutcome = ClassificationResult | ClassificationFailure
+CategoryClassificationOutcome = (
+    CategoryClassificationResult | ClassificationFailure
+)
 
 
 __all__ = [
+    "CategoryClassificationOutcome",
+    "CategoryClassificationResult",
+    "ClassificationCategory",
     "ClassificationFailure",
     "ClassificationOutcome",
     "ClassificationResult",

@@ -1,5 +1,9 @@
 """synth_extract package entrypoint."""
 from .agents.classification import (
+    CategoryClassifier,
+    CategoryClassificationOutcome,
+    CategoryClassificationResult,
+    ClassificationCategory,
     ClassificationFailure,
     ClassificationOutcome,
     ClassificationResult,
@@ -12,6 +16,10 @@ from .agents.classification import (
 from .agents.llm import LLMBackend, LLMBackendError
 
 __all__ = [
+    "CategoryClassifier",
+    "CategoryClassificationOutcome",
+    "CategoryClassificationResult",
+    "ClassificationCategory",
     "ClassificationFailure",
     "ClassificationOutcome",
     "ClassificationResult",
