@@ -14,7 +14,7 @@ from .classification import (
     TitleAbstractClassifier,
     TokenUsage,
 )
-from .llm import LLMBackend, LLMBackendError
+from .llm import GeneralAgent, LLMBackend, LLMBackendError
 
 __all__ = [
     "CategoryClassifier",
@@ -26,6 +26,7 @@ __all__ = [
     "ClassificationResult",
     "CompletionMetadata",
     "FullTextClassifier",
+    "GeneralAgent",
     "LLMBackend",
     "LLMBackendError",
     "PaperClassifier",

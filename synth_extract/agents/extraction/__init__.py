@@ -1,2 +1,0 @@
-"""Extractor agent package."""
-
