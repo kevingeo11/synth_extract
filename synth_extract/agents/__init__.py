@@ -15,6 +15,7 @@ from .classification import (
     TokenUsage,
 )
 from .llm import GeneralAgent, LLMBackend, LLMBackendError
+from .extraction import Sample, SampleExtractionRequest, SampleExtractor, SampleList
 
 __all__ = [
     "CategoryClassifier",
@@ -30,6 +31,10 @@ __all__ = [
     "LLMBackend",
     "LLMBackendError",
     "PaperClassifier",
+    "Sample",
+    "SampleExtractionRequest",
+    "SampleExtractor",
+    "SampleList",
     "TitleAbstractClassifier",
     "TokenUsage",
 ]
