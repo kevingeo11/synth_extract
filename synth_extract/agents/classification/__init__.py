@@ -6,7 +6,10 @@ from .classifier import (
     PaperClassifier,
     TitleAbstractClassifier,
 )
+from .property_presence_classifier import PropertyPresenceClassifier
 from .schemas import (
+    CANONICAL_PROPERTIES,
+    CanonicalProperty,
     CategoryClassificationOutcome,
     CategoryClassificationResult,
     ClassificationCategory,
@@ -14,10 +17,14 @@ from .schemas import (
     ClassificationOutcome,
     ClassificationResult,
     CompletionMetadata,
+    PropertyPresenceRequest,
+    PropertyPresenceResult,
     TokenUsage,
 )
 
 __all__ = [
+    "CANONICAL_PROPERTIES",
+    "CanonicalProperty",
     "CategoryClassifier",
     "CategoryClassificationOutcome",
     "CategoryClassificationResult",
@@ -28,6 +35,9 @@ __all__ = [
     "CompletionMetadata",
     "FullTextClassifier",
     "PaperClassifier",
+    "PropertyPresenceClassifier",
+    "PropertyPresenceRequest",
+    "PropertyPresenceResult",
     "TitleAbstractClassifier",
     "TokenUsage",
 ]

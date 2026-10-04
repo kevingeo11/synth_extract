@@ -1,5 +1,6 @@
 """synth_extract package entrypoint."""
 from .agents.classification import (
+    CANONICAL_PROPERTIES,
     CategoryClassifier,
     CategoryClassificationOutcome,
     CategoryClassificationResult,
@@ -7,9 +8,13 @@ from .agents.classification import (
     ClassificationFailure,
     ClassificationOutcome,
     ClassificationResult,
+    CanonicalProperty,
     CompletionMetadata,
     FullTextClassifier,
     PaperClassifier,
+    PropertyPresenceClassifier,
+    PropertyPresenceRequest,
+    PropertyPresenceResult,
     TitleAbstractClassifier,
     TokenUsage,
 )
@@ -22,6 +27,7 @@ from .agents.extraction import (
 )
 
 __all__ = [
+    "CANONICAL_PROPERTIES",
     "CategoryClassifier",
     "CategoryClassificationOutcome",
     "CategoryClassificationResult",
@@ -29,12 +35,16 @@ __all__ = [
     "ClassificationFailure",
     "ClassificationOutcome",
     "ClassificationResult",
+    "CanonicalProperty",
     "CompletionMetadata",
     "FullTextClassifier",
     "GeneralAgent",
     "LLMBackend",
     "LLMBackendError",
     "PaperClassifier",
+    "PropertyPresenceClassifier",
+    "PropertyPresenceRequest",
+    "PropertyPresenceResult",
     "Sample",
     "SampleExtractionRequest",
     "SampleExtractor",

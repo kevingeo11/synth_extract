@@ -1,6 +1,7 @@
 """LLM agents used by synth_extract."""
 
 from .classification import (
+    CANONICAL_PROPERTIES,
     CategoryClassifier,
     CategoryClassificationOutcome,
     CategoryClassificationResult,
@@ -8,9 +9,13 @@ from .classification import (
     ClassificationFailure,
     ClassificationOutcome,
     ClassificationResult,
+    CanonicalProperty,
     CompletionMetadata,
     FullTextClassifier,
     PaperClassifier,
+    PropertyPresenceClassifier,
+    PropertyPresenceRequest,
+    PropertyPresenceResult,
     TitleAbstractClassifier,
     TokenUsage,
 )
@@ -18,6 +23,7 @@ from .llm import GeneralAgent, LLMBackend, LLMBackendError
 from .extraction import Sample, SampleExtractionRequest, SampleExtractor, SampleList
 
 __all__ = [
+    "CANONICAL_PROPERTIES",
     "CategoryClassifier",
     "CategoryClassificationOutcome",
     "CategoryClassificationResult",
@@ -25,12 +31,16 @@ __all__ = [
     "ClassificationFailure",
     "ClassificationOutcome",
     "ClassificationResult",
+    "CanonicalProperty",
     "CompletionMetadata",
     "FullTextClassifier",
     "GeneralAgent",
     "LLMBackend",
     "LLMBackendError",
     "PaperClassifier",
+    "PropertyPresenceClassifier",
+    "PropertyPresenceRequest",
+    "PropertyPresenceResult",
     "Sample",
     "SampleExtractionRequest",
     "SampleExtractor",
