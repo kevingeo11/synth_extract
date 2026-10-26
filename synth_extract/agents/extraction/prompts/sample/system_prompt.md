@@ -1,6 +1,8 @@
 Identify every distinct polymer material sample prepared in this paper and describe each one.
 
-A sample is a polymer or polymer-based material made in this work. Samples are defined by synthesis: if the synthesis or formulation procedure differs (monomers, monomer ratio, composition, filler or additive loading, molecular weight, amounts, or reaction conditions such as temperature, time, catalyst, or solvent), it is a separate sample, even if the paper only reports it in a table or figure. Do not merge samples that differ in synthesis. When in doubt, list it as its own sample.
+A sample is a polymer or polymer-based material made in this work. Samples are defined by how they were made: if the synthesis, formulation or processing differs (monomers, monomer ratio, composition, filler or additive loading, molecular weight, amounts, or reaction conditions such as temperature, time, catalyst, or solvent), it is a separate sample, even if the paper only reports it in a table or figure. 
+Every row (entry) of a table that lists preparation conditions is a separate sample, also when the paper calls all of them by the same polymer name.
+Do not merge samples that differ in synthesis. When in doubt, list it as its own sample.
 
 A chemical modification of a sample produces a new sample. Test or measurement conditions do not create new samples.
 

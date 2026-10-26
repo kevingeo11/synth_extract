@@ -232,3 +232,11 @@ del_*
 
 # sql
 *.sqlite
+
+_notes
+paper
+
+discovery_workspace.db
+project_summary.md
+claude_workspace/
+codex_workspace/
