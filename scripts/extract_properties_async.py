@@ -110,6 +110,7 @@ class PairItem:
 @dataclass(slots=True)
 class Progress:
     eligible_at_start: int = 0
+    eligible_papers_at_start: int = 0
     claimed: int = 0
     claimed_papers: int = 0
     attempted: int = 0
@@ -341,7 +342,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--limit",
         type=positive_int,
         default=None,
-        help="Maximum (paper, property) pairs to attempt once during this run (default: all)",
+        help=(
+            "Maximum papers to attempt once during this run, each with all its "
+            "eligible properties (default: all)"
+        ),
     )
     parser.add_argument(
         "--batch-size",
@@ -609,25 +613,23 @@ ELIGIBLE_PAIRS_SQL = f"""
 """
 
 
-def count_eligible(connection: sqlite3.Connection, args: argparse.Namespace) -> int:
+def count_eligible(connection: sqlite3.Connection, args: argparse.Namespace) -> tuple[int, int]:
+    """Return the eligible (paper, property) pairs and the papers they belong to."""
     clause, parameters = eligibility_sql(args)
-    return int(
-        connection.execute(
-            "SELECT COUNT(*) " + ELIGIBLE_PAIRS_SQL.format(clause=clause),
-            parameters,
-        ).fetchone()[0]
-    )
+    pairs, papers = connection.execute(
+        "SELECT COUNT(*), COUNT(DISTINCT requested.paper_uid) "
+        + ELIGIBLE_PAIRS_SQL.format(clause=clause),
+        parameters,
+    ).fetchone()
+    return int(pairs), int(papers)
 
 
 def claim_next_batch(
     connection: sqlite3.Connection,
     args: argparse.Namespace,
-    max_pairs: int,
+    max_papers: int,
 ) -> list[PairClaim]:
-    """Atomically claim the next ``--batch-size`` papers with all their eligible pairs.
-
-    At most ``max_pairs`` pairs are claimed, so ``--limit`` is respected exactly.
-    """
+    """Atomically claim the next papers (at most ``max_papers``) with all their eligible pairs."""
     clause, statuses = eligibility_sql(args)
 
     def work(con: sqlite3.Connection) -> list[PairClaim]:
@@ -637,7 +639,7 @@ def claim_next_batch(
                 "SELECT requested.paper_uid "
                 + ELIGIBLE_PAIRS_SQL.format(clause=clause)
                 + " GROUP BY requested.paper_uid ORDER BY MIN(requested.position) LIMIT ?",
-                [*statuses, args.batch_size],
+                [*statuses, max_papers],
             )
         ]
         if not paper_uids:
@@ -648,8 +650,8 @@ def claim_next_batch(
             "progress.property, progress.status "
             + ELIGIBLE_PAIRS_SQL.format(clause=clause)
             + f" AND requested.paper_uid IN ({placeholders})"
-            + " ORDER BY requested.position, selected.position LIMIT ?",
-            [*statuses, *paper_uids, max_pairs],
+            + " ORDER BY requested.position, selected.position",
+            [*statuses, *paper_uids],
         ).fetchall()
 
         claimed: list[PairClaim] = []
@@ -958,14 +960,15 @@ def log_item(item: PairItem) -> None:
         )
 
 
-def log_progress(progress: Progress, target: int, started: float) -> None:
+def log_progress(progress: Progress, target_papers: int, started: float) -> None:
     elapsed = max(time.monotonic() - started, 1e-9)
     LOG.info(
-        "Progress attempted=%d/%d pairs success=%d failed=%d properties=%d unlinked=%d "
+        "Progress papers=%d/%d pairs_attempted=%d success=%d failed=%d properties=%d unlinked=%d "
         "zero_record_pairs=%d missing_markdown=%d database_errors=%d requests=%d "
         "tokens_input=%d tokens_output=%d rate=%.3f pairs/s",
+        progress.claimed_papers,
+        target_papers,
         progress.attempted,
-        target,
         progress.successful_pairs,
         progress.failed_pairs,
         progress.inserted_properties,
@@ -1010,16 +1013,17 @@ async def run_with_extractors(
         if added:
             LOG.info("Added %d missing progress rows", added)
         create_run_tracking_table(connection)
-        progress.eligible_at_start = count_eligible(connection, args)
-        target = progress.eligible_at_start
+        progress.eligible_at_start, progress.eligible_papers_at_start = count_eligible(connection, args)
+        target = progress.eligible_papers_at_start
         if args.limit is not None:
             target = min(target, args.limit)
 
         LOG.info(
-            "Manifest_uids=%d eligible_pairs=%d target=%d mode=%s properties=%s database=%s "
-            "fulltext_root=%s retry_failed=%s retry_in_progress=%s",
+            "Manifest_uids=%d eligible_pairs=%d eligible_papers=%d target_papers=%d mode=%s "
+            "properties=%s database=%s fulltext_root=%s retry_failed=%s retry_in_progress=%s",
             len(uids),
             progress.eligible_at_start,
+            progress.eligible_papers_at_start,
             target,
             args.mode,
             ",".join(args.properties),
@@ -1057,8 +1061,10 @@ async def run_with_extractors(
 
         semaphore = asyncio.Semaphore(args.max_parallel_requests)
         batch_number = 0
-        while progress.claimed < target:
-            batch = claim_next_batch(connection, args, target - progress.claimed)
+        while progress.claimed_papers < target:
+            batch = claim_next_batch(
+                connection, args, min(args.batch_size, target - progress.claimed_papers)
+            )
             if not batch:
                 break
             batch_number += 1
@@ -1068,11 +1074,11 @@ async def run_with_extractors(
             progress.claimed += len(batch)
             progress.claimed_papers += len(by_paper)
             LOG.info(
-                "Starting batch=%d papers=%d pairs=%d claimed=%d/%d",
+                "Starting batch=%d papers=%d pairs=%d claimed_papers=%d/%d",
                 batch_number,
                 len(by_paper),
                 len(batch),
-                progress.claimed,
+                progress.claimed_papers,
                 target,
             )
             try:

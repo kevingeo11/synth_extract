@@ -154,7 +154,7 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 module load GPU/buildenv-nvhpc/25.9-cu13.0
-module load GPU/Miniforge/26.3.2-2-eb
+module load GPU/Miniforge/26.9.4-1-eb
 
 source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate "$ENV_PATH"
