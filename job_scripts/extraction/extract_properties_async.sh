@@ -30,8 +30,8 @@ MODE is the prompt: p2 (per paper, values linked to samples; default) or p3
 (one request per sample). PROPERTIES limits the run to some properties
 (default: all configured in the agent's PROPERTY_CONFIG).
 MANIFEST_INDEX defaults to the trailing number in the manifest filename.
-The vLLM port is PORT_BASE + MANIFEST_INDEX (default 9000, for example 1 -> 9001),
-so it does not collide with sample-extraction jobs (8000 + index) on a shared node.
+The vLLM port is PORT_BASE + MANIFEST_INDEX (default 8000, for example 1 -> 8001),
+the same as the sample-extraction jobs.
 The worker updates the properties and property_extraction_progress tables in
 polymer_samples.db.
 EOF
@@ -63,7 +63,7 @@ fi
 
 # The 10# prefix makes zero-padded values such as 0008 decimal rather than octal.
 MANIFEST_INDEX_NUMBER=$((10#$MANIFEST_INDEX))
-PORT_BASE="${PORT_BASE:-9000}"
+PORT_BASE="${PORT_BASE:-8000}"
 SERVER_PORT=$((PORT_BASE + MANIFEST_INDEX_NUMBER))
 
 if (( SERVER_PORT > 65535 )); then

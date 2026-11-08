@@ -24,7 +24,7 @@ PROJECT_DIR=$(cd -- "$SCRIPT_DIR/../.." && pwd)
 SLURM_JOB_SCRIPT="$SCRIPT_DIR/extract_properties_async.sh"
 MANIFEST_DIR="${MANIFEST_DIR:-$PROJECT_DIR/data/uid_manifest}"
 MANIFEST_PATTERN="${MANIFEST_PATTERN:-property_extraction_uids_*.txt}"
-PORT_BASE="${PORT_BASE:-9000}"
+PORT_BASE="${PORT_BASE:-8000}"
 export PORT_BASE
 
 if ! command -v sbatch >/dev/null 2>&1; then
